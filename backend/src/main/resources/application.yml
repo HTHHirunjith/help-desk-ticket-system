@@ -25,3 +25,17 @@ app:
   jwt:
     secret: ${JWT_SECRET}
     expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+  seed:
+    enabled: ${SEED_ENABLED:false}
+    admin-email: ${DEV_ADMIN_EMAIL:admin@helpdesk.dev}
+    agent-email: ${DEV_AGENT_EMAIL:agent@helpdesk.dev}
+    user-email: ${DEV_USER_EMAIL:user@helpdesk.dev}
+    admin-first-name: Admin
+    admin-last-name: Dev
+    agent-first-name: Agent
+    agent-last-name: Dev
+    user-first-name: User
+    user-last-name: Dev
+    admin-password: ${DEV_ADMIN_PASSWORD:}
+    agent-password: ${DEV_AGENT_PASSWORD:}
+    user-password: ${DEV_USER_PASSWORD:}
