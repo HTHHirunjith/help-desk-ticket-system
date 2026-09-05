@@ -5,6 +5,7 @@ import com.hansana.helpdesk.auth.dto.LoginRequest;
 import com.hansana.helpdesk.auth.dto.LoginResponse;
 import com.hansana.helpdesk.auth.dto.RegisterRequest;
 import com.hansana.helpdesk.auth.dto.UserResponse;
+import com.hansana.helpdesk.auth.security.JwtAccessDeniedHandler;
 import com.hansana.helpdesk.auth.security.JwtAuthenticationEntryPoint;
 import com.hansana.helpdesk.auth.security.JwtAuthenticationFilter;
 import com.hansana.helpdesk.auth.security.JwtService;
@@ -36,7 +37,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(controllers = {AuthController.class, HealthController.class})
-@Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtAuthenticationEntryPoint.class, GlobalExceptionHandler.class})
+@Import({SecurityConfig.class, JwtAuthenticationFilter.class, JwtAuthenticationEntryPoint.class, JwtAccessDeniedHandler.class, GlobalExceptionHandler.class})
 class AuthControllerSecurityTest {
 
     @Autowired

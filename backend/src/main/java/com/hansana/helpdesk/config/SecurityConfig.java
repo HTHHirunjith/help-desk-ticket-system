@@ -1,5 +1,6 @@
 package com.hansana.helpdesk.config;
 
+import com.hansana.helpdesk.auth.security.JwtAccessDeniedHandler;
 import com.hansana.helpdesk.auth.security.JwtAuthenticationEntryPoint;
 import com.hansana.helpdesk.auth.security.JwtAuthenticationFilter;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,16 +20,23 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthFilter;
     private final JwtAuthenticationEntryPoint jwtAuthEntryPoint;
+    private final JwtAccessDeniedHandler jwtAccessDeniedHandler;
 
     public SecurityConfig() {
         this.jwtAuthFilter = null;
         this.jwtAuthEntryPoint = null;
+        this.jwtAccessDeniedHandler = null;
     }
 
     @Autowired
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthFilter, JwtAuthenticationEntryPoint jwtAuthEntryPoint) {
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthFilter,
+            JwtAuthenticationEntryPoint jwtAuthEntryPoint,
+            JwtAccessDeniedHandler jwtAccessDeniedHandler
+    ) {
         this.jwtAuthFilter = jwtAuthFilter;
         this.jwtAuthEntryPoint = jwtAuthEntryPoint;
+        this.jwtAccessDeniedHandler = jwtAccessDeniedHandler;
     }
 
     @Bean
@@ -38,14 +46,24 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
-        if (jwtAuthEntryPoint != null) {
-            http.exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthEntryPoint));
+        if (jwtAuthEntryPoint != null || jwtAccessDeniedHandler != null) {
+            http.exceptionHandling(ex -> {
+                if (jwtAuthEntryPoint != null) {
+                    ex.authenticationEntryPoint(jwtAuthEntryPoint);
+                }
+                if (jwtAccessDeniedHandler != null) {
+                    ex.accessDeniedHandler(jwtAccessDeniedHandler);
+                }
+            });
         }
 
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/health").permitAll()
                 .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login").permitAll()
                 .requestMatchers("/api/v1/auth/me").authenticated()
+                .requestMatchers("/api/v1/test/admin").hasRole("ADMIN")
+                .requestMatchers("/api/v1/test/agent").hasAnyRole("SUPPORT_AGENT", "ADMIN")
+                .requestMatchers("/api/v1/test/user").authenticated()
                 .anyRequest().authenticated()
         );
 
