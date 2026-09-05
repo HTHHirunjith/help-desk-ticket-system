@@ -21,3 +21,14 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+target/
+!.mvn/wrapper/maven-wrapper.jar
+*.class
+*.jar
+*.war
+*.ear
+*.iml
+.classpath
+.project
+.settings/
