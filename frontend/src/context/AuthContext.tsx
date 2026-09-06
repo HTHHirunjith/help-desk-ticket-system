@@ -18,6 +18,18 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
+const LEGACY_STORAGE_KEYS = ['helpdesk_auth', 'token'];
+
+function clearLegacyAuthStorage(): void {
+  for (const key of LEGACY_STORAGE_KEYS) {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // ignore storage access errors
+    }
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_STORAGE_KEY));
@@ -27,12 +39,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    clearLegacyAuthStorage();
     setUser(null);
     setToken(null);
   }, []);
 
   // Initialize and restore session from backend /auth/me
   useEffect(() => {
+    // Clear any stale legacy mock-auth keys from previous frontend iterations
+    clearLegacyAuthStorage();
+
     let isMounted = true;
     const restoreSession = async () => {
       const storedToken = localStorage.getItem(TOKEN_STORAGE_KEY);
