@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/routing/ProtectedRoute';
 import { LoginPage } from '@/pages/auth/LoginPage';
+import { RegisterPage } from '@/pages/auth/RegisterPage';
 import { UserDashboard } from '@/pages/user/UserDashboard';
 import { MyTicketsPage } from '@/pages/user/MyTicketsPage';
 import { CreateTicketPage } from '@/pages/user/CreateTicketPage';
@@ -22,6 +23,7 @@ export default function App() {
         <Routes>
           {/* Public */}
           <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+          <Route path="/register" element={<PublicOnlyRoute><RegisterPage /></PublicOnlyRoute>} />
 
           {/* USER routes */}
           <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['USER']}><UserDashboard /></ProtectedRoute>} />

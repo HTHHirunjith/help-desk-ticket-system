@@ -1,39 +1,55 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button, Input } from '@/components/ui';
-import { LifeBuoy, Mail, Lock, AlertCircle, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import { LifeBuoy, Mail, Lock, User as UserIcon, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
-interface LocationState {
-  from?: { pathname: string };
-  successMessage?: string;
-}
-
-export function LoginPage() {
-  const { login, isLoading, error, clearError } = useAuth();
+export function RegisterPage() {
+  const { register, isLoading, error, clearError } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
-  const locationState = location.state as LocationState | undefined;
-  const fromPath = locationState?.from?.pathname;
-  const successMessage = locationState?.successMessage;
 
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [validationErrors, setValidationErrors] = useState<{ email?: string; password?: string }>({});
+  const [validationErrors, setValidationErrors] = useState<{
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    password?: string;
+  }>({});
 
   const validate = (): boolean => {
     const errors: typeof validationErrors = {};
+    if (!firstName.trim()) {
+      errors.firstName = 'First name is required.';
+    } else if (firstName.trim().length > 100) {
+      errors.firstName = 'First name must not exceed 100 characters.';
+    }
+
+    if (!lastName.trim()) {
+      errors.lastName = 'Last name is required.';
+    } else if (lastName.trim().length > 100) {
+      errors.lastName = 'Last name must not exceed 100 characters.';
+    }
+
     if (!email.trim()) {
       errors.email = 'Email is required.';
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
       errors.email = 'Please enter a valid email address.';
+    } else if (email.trim().length > 320) {
+      errors.email = 'Email must not exceed 320 characters.';
     }
+
     if (!password) {
       errors.password = 'Password is required.';
     } else if (password.length < 6) {
       errors.password = 'Password must be at least 6 characters.';
+    } else if (password.length > 100) {
+      errors.password = 'Password must not exceed 100 characters.';
     }
+
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -42,11 +58,23 @@ export function LoginPage() {
     e.preventDefault();
     clearError();
     if (!validate()) return;
+
     try {
-      await login({ email: email.trim(), password });
-      navigate(fromPath || '/dashboard', { replace: true });
+      await register({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        password,
+      });
+      // On success, navigate to login with a user-friendly feedback message
+      navigate('/login', {
+        replace: true,
+        state: {
+          successMessage: 'Registration successful! Please sign in with your new account.',
+        },
+      });
     } catch {
-      // error is set in context
+      // Error is captured and exposed via useAuth().error
     }
   };
 
@@ -54,10 +82,13 @@ export function LoginPage() {
     <div className="min-h-screen flex flex-col lg:flex-row bg-slate-50">
       {/* Left panel — branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-slate-900 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5" style={{
-          backgroundImage: 'radial-gradient(circle at 25% 25%, white 1px, transparent 1px)',
-          backgroundSize: '32px 32px',
-        }} />
+        <div
+          className="absolute inset-0 opacity-5"
+          style={{
+            backgroundImage: 'radial-gradient(circle at 25% 25%, white 1px, transparent 1px)',
+            backgroundSize: '32px 32px',
+          }}
+        />
         <div className="relative z-10 flex flex-col justify-between p-12 text-white w-full">
           <div className="flex items-center gap-3">
             <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-blue-600">
@@ -67,19 +98,19 @@ export function LoginPage() {
           </div>
           <div className="max-w-md">
             <h1 className="text-3xl font-bold leading-tight mb-4">
-              Professional support ticket management for modern teams
+              Join modern teams resolving tickets faster
             </h1>
             <p className="text-slate-400 text-lg leading-relaxed">
-              Submit, track, and resolve support tickets with a streamlined workflow built for users, agents, and administrators.
+              Create an account to submit issues, track progress in real time, and collaborate seamlessly with support agents.
             </p>
           </div>
           <div className="flex items-center gap-6 text-sm text-slate-400">
-            <span>Open · In Progress · Resolved · Closed</span>
+            <span>Fast Setup · Real-time Tracking · Clean Workflows</span>
           </div>
         </div>
       </div>
 
-      {/* Right panel — form */}
+      {/* Right panel — registration form */}
       <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-sm">
           <div className="lg:hidden flex items-center gap-3 mb-8">
@@ -89,17 +120,44 @@ export function LoginPage() {
             <span className="text-lg font-bold text-slate-900">HelpDesk</span>
           </div>
 
-          <h2 className="text-2xl font-bold text-slate-900 mb-2">Welcome back</h2>
-          <p className="text-sm text-slate-500 mb-8">Sign in to your account to continue</p>
+          <h2 className="text-2xl font-bold text-slate-900 mb-2">Create an account</h2>
+          <p className="text-sm text-slate-500 mb-8">Enter your details below to register as a user</p>
 
-          {successMessage && (
-            <div className="flex items-start gap-2 p-3 mb-5 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">
-              <CheckCircle size={16} className="shrink-0 mt-0.5" />
-              <span>{successMessage}</span>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                name="firstName"
+                type="text"
+                label="First name"
+                placeholder="Jane"
+                leftIcon={<UserIcon size={16} />}
+                value={firstName}
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  if (validationErrors.firstName) setValidationErrors((p) => ({ ...p, firstName: undefined }));
+                }}
+                error={validationErrors.firstName}
+                autoComplete="given-name"
+                disabled={isLoading}
+              />
+
+              <Input
+                name="lastName"
+                type="text"
+                label="Last name"
+                placeholder="Doe"
+                leftIcon={<UserIcon size={16} />}
+                value={lastName}
+                onChange={(e) => {
+                  setLastName(e.target.value);
+                  if (validationErrors.lastName) setValidationErrors((p) => ({ ...p, lastName: undefined }));
+                }}
+                error={validationErrors.lastName}
+                autoComplete="family-name"
+                disabled={isLoading}
+              />
             </div>
-          )}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
             <Input
               name="email"
               type="email"
@@ -121,7 +179,7 @@ export function LoginPage() {
                 name="password"
                 type={showPassword ? 'text' : 'password'}
                 label="Password"
-                placeholder="Enter your password"
+                placeholder="At least 6 characters"
                 leftIcon={<Lock size={16} />}
                 value={password}
                 onChange={(e) => {
@@ -129,7 +187,7 @@ export function LoginPage() {
                   if (validationErrors.password) setValidationErrors((p) => ({ ...p, password: undefined }));
                 }}
                 error={validationErrors.password}
-                autoComplete="current-password"
+                autoComplete="new-password"
                 disabled={isLoading}
               />
               <button
@@ -150,26 +208,16 @@ export function LoginPage() {
             )}
 
             <Button type="submit" fullWidth size="lg" loading={isLoading}>
-              {isLoading ? 'Signing in...' : 'Sign in'}
+              {isLoading ? 'Creating account...' : 'Create account'}
             </Button>
           </form>
 
-          <p className="mt-6 text-center text-sm text-slate-600">
-            Don&apos;t have an account?{' '}
-            <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500 hover:underline">
-              Create an account
+          <p className="mt-8 text-center text-sm text-slate-600">
+            Already have an account?{' '}
+            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500 hover:underline">
+              Sign in
             </Link>
           </p>
-
-          <div className="mt-8 p-4 rounded-lg bg-slate-100 border border-slate-200">
-            <p className="text-xs font-semibold text-slate-600 mb-2">Development Accounts</p>
-            <div className="space-y-1 text-xs text-slate-500">
-              <p><span className="font-medium text-slate-700">User:</span> user@helpdesk.dev</p>
-              <p><span className="font-medium text-slate-700">Agent:</span> agent@helpdesk.dev</p>
-              <p><span className="font-medium text-slate-700">Admin:</span> admin@helpdesk.dev</p>
-              <p className="text-slate-400 mt-1">Use the local development password configured in backend/.env</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>

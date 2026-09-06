@@ -18,7 +18,14 @@ export interface User {
   lastName: string;
   role: UserRole;
   avatarUrl?: string;
-  createdAt: string;
+  createdAt?: string;
+}
+
+export interface RegisterPayload {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
 }
 
 export interface Agent {
