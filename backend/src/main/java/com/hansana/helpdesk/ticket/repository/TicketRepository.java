@@ -25,4 +25,36 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
     Page<Ticket> findByPriority(TicketPriority priority, Pageable pageable);
 
     Page<Ticket> findByCategoryId(UUID categoryId, Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT t FROM Ticket t WHERE t.requester.id = :requesterId " +
+           "AND (:status IS NULL OR t.status = :status) " +
+           "AND (:priority IS NULL OR t.priority = :priority) " +
+           "AND (:categoryId IS NULL OR t.category.id = :categoryId)")
+    Page<Ticket> findByRequesterWithFilters(
+            @org.springframework.data.repository.query.Param("requesterId") UUID requesterId,
+            @org.springframework.data.repository.query.Param("status") TicketStatus status,
+            @org.springframework.data.repository.query.Param("priority") TicketPriority priority,
+            @org.springframework.data.repository.query.Param("categoryId") UUID categoryId,
+            Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT t FROM Ticket t WHERE t.assignedAgent.id = :agentId " +
+           "AND (:status IS NULL OR t.status = :status) " +
+           "AND (:priority IS NULL OR t.priority = :priority) " +
+           "AND (:categoryId IS NULL OR t.category.id = :categoryId)")
+    Page<Ticket> findByAssignedAgentWithFilters(
+            @org.springframework.data.repository.query.Param("agentId") UUID agentId,
+            @org.springframework.data.repository.query.Param("status") TicketStatus status,
+            @org.springframework.data.repository.query.Param("priority") TicketPriority priority,
+            @org.springframework.data.repository.query.Param("categoryId") UUID categoryId,
+            Pageable pageable);
+
+    @org.springframework.data.jpa.repository.Query("SELECT t FROM Ticket t WHERE " +
+           "(:status IS NULL OR t.status = :status) " +
+           "AND (:priority IS NULL OR t.priority = :priority) " +
+           "AND (:categoryId IS NULL OR t.category.id = :categoryId)")
+    Page<Ticket> findAllWithFilters(
+            @org.springframework.data.repository.query.Param("status") TicketStatus status,
+            @org.springframework.data.repository.query.Param("priority") TicketPriority priority,
+            @org.springframework.data.repository.query.Param("categoryId") UUID categoryId,
+            Pageable pageable);
 }

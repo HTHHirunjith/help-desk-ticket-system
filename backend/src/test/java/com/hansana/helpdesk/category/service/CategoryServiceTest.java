@@ -59,6 +59,40 @@ class CategoryServiceTest {
     }
 
     @Test
+    void findCategoriesWithActiveTrueReturnsOnlyActive() {
+        Category cat = new Category("GENERAL", "General inquiries");
+        when(categoryRepository.findByActiveTrueOrderByNameAsc()).thenReturn(List.of(cat));
+
+        List<Category> result = categoryService.findCategories(true);
+
+        assertEquals(1, result.size());
+        verify(categoryRepository).findByActiveTrueOrderByNameAsc();
+    }
+
+    @Test
+    void findCategoriesWithActiveFalseReturnsOnlyInactive() {
+        Category cat = new Category("OLD", "Old inquiries");
+        cat.setActive(false);
+        when(categoryRepository.findByActiveFalseOrderByNameAsc()).thenReturn(List.of(cat));
+
+        List<Category> result = categoryService.findCategories(false);
+
+        assertEquals(1, result.size());
+        verify(categoryRepository).findByActiveFalseOrderByNameAsc();
+    }
+
+    @Test
+    void findCategoriesWithNullActiveReturnsAll() {
+        Category cat = new Category("GENERAL", "General inquiries");
+        when(categoryRepository.findAllByOrderByNameAsc()).thenReturn(List.of(cat));
+
+        List<Category> result = categoryService.findCategories(null);
+
+        assertEquals(1, result.size());
+        verify(categoryRepository).findAllByOrderByNameAsc();
+    }
+
+    @Test
     void getByIdReturnsCategoryWhenFound() {
         UUID id = UUID.randomUUID();
         Category cat = new Category("TECHNICAL", "Tech issues");

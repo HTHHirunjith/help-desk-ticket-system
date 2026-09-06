@@ -28,6 +28,15 @@ public class CategoryService {
         return categoryRepository.findByActiveTrueOrderByNameAsc();
     }
 
+    public List<Category> findCategories(Boolean active) {
+        if (Boolean.TRUE.equals(active)) {
+            return categoryRepository.findByActiveTrueOrderByNameAsc();
+        } else if (Boolean.FALSE.equals(active)) {
+            return categoryRepository.findByActiveFalseOrderByNameAsc();
+        }
+        return categoryRepository.findAllByOrderByNameAsc();
+    }
+
     public Optional<Category> findById(UUID id) {
         return categoryRepository.findById(id);
     }

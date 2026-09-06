@@ -1,8 +1,8 @@
 # Help Desk Ticket System — Development Status
 
-**Document version:** 1.1
-**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete
-**Next phase:** Phase 3B (Core Ticket Management) — not started
+**Document version:** 1.2
+**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete; Phase 3B (Core Ticket Management) — complete
+**Next phase:** Phase 3C (Assignment + Workflow) — not started
 
 ---
 
@@ -237,7 +237,7 @@ Variables are loaded from `backend/.env` (git-ignored). A `backend/.env.example`
 
 ---
 
-## 6. Phase 3A Implementation Summary & What Is Not Yet Implemented
+## 6. Phase 3 Implementation Summary & What Is Not Yet Implemented
 
 ### 6.1 Phase 3A: Ticket & Category Foundation (Complete)
 
@@ -249,15 +249,27 @@ Phase 3A established the backend domain foundation for tickets, categories, comm
 - **Database & Migration**: `V1__initial_schema.sql` establishes tables, check constraints, foreign keys, triggers, indexes, and initial 6 seed categories. `V2__ticket_domain_baseline.sql` documents the Phase 3A schema checkpoint.
 - **Tests**: Comprehensive entity, enum, repository query declaration, and service unit tests (90 tests total, all passing).
 
-### 6.2 Not Yet Implemented (Phase 3B+)
+### 6.2 Phase 3B: Core Ticket Management (Complete)
+
+Phase 3B implemented the core ticket lifecycle endpoints, category read support, DTOs, and role-based security:
+- **Category Read API**: `GET /api/v1/categories` (supporting optional `?active=true` and `?active=false` filtering via service delegation, keeping the controller thin).
+- **Ticket Management API**:
+  - `POST /api/v1/tickets`: USER-only creation. Initial priority required. Requester automatically derived from authenticated principal.
+  - `GET /api/v1/tickets`: Role-scoped filtered listing (USER sees owned tickets, SUPPORT_AGENT sees assigned tickets, ADMIN sees all; with optional status, priority, categoryId filters; sorted by `updatedAt DESC` via `@PageableDefault`).
+  - `GET /api/v1/tickets/{ticketId}`: Role-scoped detail lookup (non-owner/unassigned tickets return 404 to hide existence).
+  - `PATCH /api/v1/tickets/{ticketId}`: USER-only open ticket update (enforces strict security ordering: ownership check first returning 404, status check returning 409 if not OPEN, non-empty field validation, active category validation, partial update).
+  - `PATCH /api/v1/tickets/{ticketId}/priority`: SUPPORT_AGENT (assigned only) and ADMIN priority change endpoint (USER receives 403; unassigned/differently assigned agent receives 404).
+- **Error Handling & DTOs**: `TicketNotEditableException` (409 Conflict), malformed JSON/invalid enum handling (400 Bad Request), `PagedResponse<T>`, `CategoryResponse`, `TicketSummaryResponse`, `TicketDetailResponse`, `CreateTicketRequest`, `UpdateTicketRequest`, `ChangePriorityRequest`.
+- **Tests**: Comprehensive controller security tests (`TicketControllerSecurityTest`, `CategoryControllerSecurityTest`) and service business-rule tests (`TicketServiceTest`, `CategoryServiceTest`). Total 137 tests, all passing.
+
+### 6.3 Not Yet Implemented (Phase 3C+)
 
 The following features are designed and specified in the API contract and architecture documents but have **NOT** been implemented:
 
-- **Phase 3B**: Ticket REST controllers, create ticket endpoint, list tickets endpoint, ticket detail endpoint, edit ticket endpoint, change priority endpoint
-- **Phase 3C**: Ticket assignment and reassignment endpoints, ticket lifecycle workflow endpoints (`/start`, `/resolve`, `/confirm-resolution`, `/reject-resolution`, `/close`)
+- **Phase 3C**: Ticket assignment and reassignment endpoints (`PATCH /api/v1/tickets/{id}/assign`, `PATCH /api/v1/tickets/{id}/reassign`), ticket lifecycle workflow endpoints (`/start`, `/resolve`, `/confirm-resolution`, `/reject-resolution`, `/close`)
 - **Phase 3D**: Comment REST endpoints (`GET /api/v1/tickets/{id}/comments`, `POST /api/v1/tickets/{id}/comments`), audit REST endpoints / event logging workflow
 - **Phase 3E**: Frontend ticket/category integration, replacing mock services with real API calls
-- **Future phases**: Category management REST endpoints, dashboard statistics, user management (activation/deactivation, role management by admin), agent management views
+- **Future phases**: Category management write endpoints, dashboard statistics, user management (activation/deactivation, role management by admin), agent management views
 
 ---
 
