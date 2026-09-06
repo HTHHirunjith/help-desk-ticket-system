@@ -21,10 +21,11 @@ This system provides a structured workflow for handling support tickets. Users s
 ## Current Status
 
 ```
-Phase 2 — Authentication and Authorization
-Status:  Complete
+Phase 2  — Authentication and Authorization  (Complete)
+Phase 3A — Ticket & Category Foundation       (Complete)
+Status:   Complete
 
-Next planned phase: Phase 3 — Core Ticket Management
+Next planned phase: Phase 3B — Core Ticket Management
 ```
 
 See [`docs/development-status.md`](docs/development-status.md) for the full breakdown of what is and is not yet implemented.

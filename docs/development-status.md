@@ -1,8 +1,8 @@
 # Help Desk Ticket System — Development Status
 
-**Document version:** 1.0
-**Phase covered:** Phase 2 (Authentication & Authorization) — complete
-**Next phase:** Phase 3 (Core Ticket Management) — not started
+**Document version:** 1.1
+**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete
+**Next phase:** Phase 3B (Core Ticket Management) — not started
 
 ---
 
@@ -237,20 +237,27 @@ Variables are loaded from `backend/.env` (git-ignored). A `backend/.env.example`
 
 ---
 
-## 6. What Is Not Yet Implemented (Phase 3+)
+## 6. Phase 3A Implementation Summary & What Is Not Yet Implemented
 
-The following features are designed and specified in the API contract and architecture documents but have not been implemented:
+### 6.1 Phase 3A: Ticket & Category Foundation (Complete)
 
-- Ticket creation, listing, detail, and lifecycle transitions
-- Category management
-- Comment management
-- Ticket assignment and reassignment
-- Audit log retrieval
-- Dashboard statistics
-- User management (account activation/deactivation, role management by admin)
-- Agent management views
+Phase 3A established the backend domain foundation for tickets, categories, comments, and audits:
+- **JPA Entities**: `Category`, `Ticket`, `Comment`, `TicketAudit` with appropriate constraints, column types, and lazy relationships.
+- **Controlled Values / Enums**: `TicketPriority` (`LOW`, `MEDIUM`, `HIGH`, `URGENT`), `TicketStatus` (`OPEN`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`), and `AuditAction` (11 approved actions).
+- **Repositories**: `CategoryRepository`, `TicketRepository`, `CommentRepository`, and `TicketAuditRepository` using Spring Data JPA.
+- **Service**: `CategoryService` foundation for category lookups.
+- **Database & Migration**: `V1__initial_schema.sql` establishes tables, check constraints, foreign keys, triggers, indexes, and initial 6 seed categories. `V2__ticket_domain_baseline.sql` documents the Phase 3A schema checkpoint.
+- **Tests**: Comprehensive entity, enum, repository query declaration, and service unit tests (90 tests total, all passing).
 
-The backend packages `ticket/`, `comment/`, `category/`, `audit/`, and `dashboard/` exist as structural stubs and contain no implemented service or controller logic.
+### 6.2 Not Yet Implemented (Phase 3B+)
+
+The following features are designed and specified in the API contract and architecture documents but have **NOT** been implemented:
+
+- **Phase 3B**: Ticket REST controllers, create ticket endpoint, list tickets endpoint, ticket detail endpoint, edit ticket endpoint, change priority endpoint
+- **Phase 3C**: Ticket assignment and reassignment endpoints, ticket lifecycle workflow endpoints (`/start`, `/resolve`, `/confirm-resolution`, `/reject-resolution`, `/close`)
+- **Phase 3D**: Comment REST endpoints (`GET /api/v1/tickets/{id}/comments`, `POST /api/v1/tickets/{id}/comments`), audit REST endpoints / event logging workflow
+- **Phase 3E**: Frontend ticket/category integration, replacing mock services with real API calls
+- **Future phases**: Category management REST endpoints, dashboard statistics, user management (activation/deactivation, role management by admin), agent management views
 
 ---
 

@@ -1,0 +1,15 @@
+package com.hansana.helpdesk.audit.entity;
+
+public enum AuditAction {
+    TICKET_CREATED,
+    TICKET_ASSIGNED,
+    TICKET_REASSIGNED,
+    TICKET_UNASSIGNED,
+    STATUS_CHANGED,
+    PRIORITY_CHANGED,
+    TICKET_REOPENED,
+    RESOLUTION_CONFIRMED,
+    TICKET_CLOSED,
+    COMMENT_ADDED,
+    CATEGORY_CHANGED
+}
