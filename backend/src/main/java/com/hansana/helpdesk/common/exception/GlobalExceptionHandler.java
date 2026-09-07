@@ -48,6 +48,11 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(InvalidTicketStateException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidTicketState(InvalidTicketStateException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(org.springframework.http.converter.HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, Object>> handleHttpMessageNotReadable(org.springframework.http.converter.HttpMessageNotReadableException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.BAD_REQUEST, "Bad Request", "Malformed request body or invalid property value", request.getRequestURI());

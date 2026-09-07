@@ -82,4 +82,61 @@ public class TicketController {
         TicketDetailResponse response = ticketService.changePriority(ticketId, request, principal);
         return ResponseEntity.ok(response);
     }
+
+    @org.springframework.web.bind.annotation.PutMapping("/{ticketId}/assignment")
+    public ResponseEntity<TicketDetailResponse> assignTicket(
+            @PathVariable("ticketId") UUID ticketId,
+            @Valid @RequestBody com.hansana.helpdesk.ticket.dto.AssignTicketRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        TicketDetailResponse response = ticketService.assignTicket(ticketId, request, principal);
+        return ResponseEntity.ok(response);
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/{ticketId}/assignment")
+    public ResponseEntity<Void> unassignTicket(
+            @PathVariable("ticketId") UUID ticketId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        ticketService.unassignTicket(ticketId, principal);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{ticketId}/start")
+    public ResponseEntity<TicketDetailResponse> startWork(
+            @PathVariable("ticketId") UUID ticketId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        TicketDetailResponse response = ticketService.startWork(ticketId, principal);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{ticketId}/resolve")
+    public ResponseEntity<TicketDetailResponse> resolveTicket(
+            @PathVariable("ticketId") UUID ticketId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        TicketDetailResponse response = ticketService.resolveTicket(ticketId, principal);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{ticketId}/confirm-resolution")
+    public ResponseEntity<TicketDetailResponse> confirmResolution(
+            @PathVariable("ticketId") UUID ticketId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        TicketDetailResponse response = ticketService.confirmResolution(ticketId, principal);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{ticketId}/reject-resolution")
+    public ResponseEntity<TicketDetailResponse> rejectResolution(
+            @PathVariable("ticketId") UUID ticketId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        TicketDetailResponse response = ticketService.rejectResolution(ticketId, principal);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/{ticketId}/close")
+    public ResponseEntity<TicketDetailResponse> closeTicket(
+            @PathVariable("ticketId") UUID ticketId,
+            @AuthenticationPrincipal UserPrincipal principal) {
+        TicketDetailResponse response = ticketService.closeTicket(ticketId, principal);
+        return ResponseEntity.ok(response);
+    }
 }

@@ -1,8 +1,8 @@
 # Help Desk Ticket System — Development Status
 
-**Document version:** 1.2
-**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete; Phase 3B (Core Ticket Management) — complete
-**Next phase:** Phase 3C (Assignment + Workflow) — not started
+**Document version:** 1.3
+**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete; Phase 3B (Core Ticket Management) — complete; Phase 3C (Assignment + Workflow) — complete
+**Next phase:** Phase 3D (Comments + Audit API) — not started
 
 ---
 
@@ -262,13 +262,31 @@ Phase 3B implemented the core ticket lifecycle endpoints, category read support,
 - **Error Handling & DTOs**: `TicketNotEditableException` (409 Conflict), malformed JSON/invalid enum handling (400 Bad Request), `PagedResponse<T>`, `CategoryResponse`, `TicketSummaryResponse`, `TicketDetailResponse`, `CreateTicketRequest`, `UpdateTicketRequest`, `ChangePriorityRequest`.
 - **Tests**: Comprehensive controller security tests (`TicketControllerSecurityTest`, `CategoryControllerSecurityTest`) and service business-rule tests (`TicketServiceTest`, `CategoryServiceTest`). Total 137 tests, all passing.
 
-### 6.3 Not Yet Implemented (Phase 3C+)
+### 6.3 Phase 3C: Assignment + Workflow (Complete)
+
+Phase 3C implemented ticket assignment/reassignment/unassignment, lifecycle workflow actions, and transactional audit event persistence:
+- **Assignment Endpoints (ADMIN-only)**:
+  - `PUT /api/v1/tickets/{ticketId}/assignment`: Assigns an unassigned ticket (`TICKET_ASSIGNED`) or reassigns to a different agent (`TICKET_REASSIGNED`). Validates target agent exists, is active, and has `SUPPORT_AGENT` role. Assigning the exact same agent returns `409 Conflict` and generates no audit event.
+  - `DELETE /api/v1/tickets/{ticketId}/assignment`: Unassigns the current agent (`TICKET_UNASSIGNED`). If already unassigned, returns `409 Conflict` and generates no audit event.
+  - **No Self-Claim**: Explicitly enforces ADMIN-only assignment authority. No self-claim endpoint or self-assignment exists.
+- **Workflow Lifecycle Endpoints**:
+  - `POST /api/v1/tickets/{ticketId}/start`: Assigned `SUPPORT_AGENT` only. Transitions `OPEN` → `IN_PROGRESS`. Persists `STATUS_CHANGED` audit record.
+  - `POST /api/v1/tickets/{ticketId}/resolve`: Assigned `SUPPORT_AGENT` only. Transitions `IN_PROGRESS` → `RESOLVED`. Persists `STATUS_CHANGED` audit record.
+  - `POST /api/v1/tickets/{ticketId}/confirm-resolution`: Requester (`USER`) only. Validates ticket is `RESOLVED`, records `resolutionConfirmedAt` timestamp and `resolutionConfirmedBy` (authenticated requester), preserves assigned agent. Persists `RESOLUTION_CONFIRMED` audit record.
+  - `POST /api/v1/tickets/{ticketId}/reject-resolution`: Requester (`USER`) only. Transitions `RESOLVED` → `OPEN`, clears resolution confirmation fields, updates `updatedAt`, preserves assigned agent. Persists `TICKET_REOPENED` audit record.
+  - `POST /api/v1/tickets/{ticketId}/close`: `ADMIN` only. Requires ticket in `RESOLVED` state with both `resolutionConfirmedAt` and `resolutionConfirmedBy` populated. Transitions `RESOLVED` → `CLOSED` (terminal state). Persists `TICKET_CLOSED` audit record.
+- **Audit Persistence & Error Handling**:
+  - Reuses Phase 3A `TicketAudit` entity and repository within the same `@Transactional` boundary as state mutations.
+  - Derives `actorId` strictly from authenticated security context (`UserPrincipal`).
+  - Structured error handling: `InvalidTicketStateException` (409 Conflict) for invalid lifecycle transitions and redundant assignment/unassignment operations.
+- **Tests**: Comprehensive unit, controller security, and service business-rule tests (161 tests total, all passing).
+
+### 6.4 Not Yet Implemented (Phase 3D+)
 
 The following features are designed and specified in the API contract and architecture documents but have **NOT** been implemented:
 
-- **Phase 3C**: Ticket assignment and reassignment endpoints (`PATCH /api/v1/tickets/{id}/assign`, `PATCH /api/v1/tickets/{id}/reassign`), ticket lifecycle workflow endpoints (`/start`, `/resolve`, `/confirm-resolution`, `/reject-resolution`, `/close`)
-- **Phase 3D**: Comment REST endpoints (`GET /api/v1/tickets/{id}/comments`, `POST /api/v1/tickets/{id}/comments`), audit REST endpoints / event logging workflow
-- **Phase 3E**: Frontend ticket/category integration, replacing mock services with real API calls
+- **Phase 3D**: Comment REST endpoints (`GET /api/v1/tickets/{id}/comments`, `POST /api/v1/tickets/{id}/comments`), audit REST endpoints (`GET /api/v1/tickets/{id}/audit`)
+- **Phase 3E**: Frontend ticket/category/workflow integration, replacing mock services with real API calls
 - **Future phases**: Category management write endpoints, dashboard statistics, user management (activation/deactivation, role management by admin), agent management views
 
 ---

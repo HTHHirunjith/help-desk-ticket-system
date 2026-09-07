@@ -1,11 +1,16 @@
 package com.hansana.helpdesk.ticket.service;
 
+import com.hansana.helpdesk.audit.entity.AuditAction;
+import com.hansana.helpdesk.audit.entity.TicketAudit;
+import com.hansana.helpdesk.audit.repository.TicketAuditRepository;
 import com.hansana.helpdesk.auth.security.UserPrincipal;
 import com.hansana.helpdesk.category.entity.Category;
 import com.hansana.helpdesk.category.repository.CategoryRepository;
 import com.hansana.helpdesk.common.dto.PagedResponse;
+import com.hansana.helpdesk.common.exception.InvalidTicketStateException;
 import com.hansana.helpdesk.common.exception.ResourceNotFoundException;
 import com.hansana.helpdesk.common.exception.TicketNotEditableException;
+import com.hansana.helpdesk.ticket.dto.AssignTicketRequest;
 import com.hansana.helpdesk.ticket.dto.ChangePriorityRequest;
 import com.hansana.helpdesk.ticket.dto.CreateTicketRequest;
 import com.hansana.helpdesk.ticket.dto.TicketDetailResponse;
@@ -20,9 +25,11 @@ import com.hansana.helpdesk.user.entity.UserRole;
 import com.hansana.helpdesk.user.repository.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.UUID;
 
 @Service
@@ -32,13 +39,16 @@ public class TicketService {
     private final TicketRepository ticketRepository;
     private final CategoryRepository categoryRepository;
     private final UserRepository userRepository;
+    private final TicketAuditRepository ticketAuditRepository;
 
     public TicketService(TicketRepository ticketRepository,
                          CategoryRepository categoryRepository,
-                         UserRepository userRepository) {
+                         UserRepository userRepository,
+                         TicketAuditRepository ticketAuditRepository) {
         this.ticketRepository = ticketRepository;
         this.categoryRepository = categoryRepository;
         this.userRepository = userRepository;
+        this.ticketAuditRepository = ticketAuditRepository;
     }
 
     public TicketDetailResponse createTicket(CreateTicketRequest request, UserPrincipal principal) {
@@ -166,6 +176,227 @@ public class TicketService {
 
         ticket.setPriority(request.priority());
         Ticket savedTicket = ticketRepository.save(ticket);
+        return TicketDetailResponse.from(savedTicket);
+    }
+
+    public TicketDetailResponse assignTicket(UUID ticketId, AssignTicketRequest request, UserPrincipal principal) {
+        if (principal.getRole() != UserRole.ADMIN) {
+            throw new AccessDeniedException("Only ADMIN can assign tickets");
+        }
+
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + ticketId));
+
+        User actor = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Actor not found with id: " + principal.getId()));
+
+        User targetAgent = userRepository.findById(request.agentId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with id: " + request.agentId()));
+
+        if (!targetAgent.isActive()) {
+            throw new IllegalArgumentException("Cannot assign ticket to inactive user");
+        }
+
+        if (targetAgent.getRole() != UserRole.SUPPORT_AGENT) {
+            throw new IllegalArgumentException("Target user is not a SUPPORT_AGENT");
+        }
+
+        User previousAgent = ticket.getAssignedAgent();
+
+        if (previousAgent != null && previousAgent.getId().equals(targetAgent.getId())) {
+            throw new InvalidTicketStateException("Ticket is already assigned to this agent");
+        }
+
+        AuditAction action;
+        String details;
+        if (previousAgent == null) {
+            action = AuditAction.TICKET_ASSIGNED;
+            details = String.format("{\"newAgentId\":\"%s\"}", targetAgent.getId());
+        } else {
+            action = AuditAction.TICKET_REASSIGNED;
+            details = String.format("{\"previousAgentId\":\"%s\",\"newAgentId\":\"%s\"}", previousAgent.getId(), targetAgent.getId());
+        }
+
+        ticket.setAssignedAgent(targetAgent);
+        Ticket savedTicket = ticketRepository.save(ticket);
+
+        TicketAudit audit = new TicketAudit(savedTicket, actor, action, details);
+        ticketAuditRepository.save(audit);
+
+        return TicketDetailResponse.from(savedTicket);
+    }
+
+    public void unassignTicket(UUID ticketId, UserPrincipal principal) {
+        if (principal.getRole() != UserRole.ADMIN) {
+            throw new AccessDeniedException("Only ADMIN can unassign tickets");
+        }
+
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + ticketId));
+
+        User previousAgent = ticket.getAssignedAgent();
+        if (previousAgent == null) {
+            throw new InvalidTicketStateException("Ticket is already unassigned");
+        }
+
+        User actor = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Actor not found with id: " + principal.getId()));
+
+        ticket.setAssignedAgent(null);
+        Ticket savedTicket = ticketRepository.save(ticket);
+
+        String details = String.format("{\"previousAgentId\":\"%s\"}", previousAgent.getId());
+        TicketAudit audit = new TicketAudit(savedTicket, actor, AuditAction.TICKET_UNASSIGNED, details);
+        ticketAuditRepository.save(audit);
+    }
+
+    public TicketDetailResponse startWork(UUID ticketId, UserPrincipal principal) {
+        if (principal.getRole() != UserRole.SUPPORT_AGENT) {
+            throw new AccessDeniedException("Only SUPPORT_AGENT can start work on tickets");
+        }
+
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + ticketId));
+
+        if (ticket.getAssignedAgent() == null || !ticket.getAssignedAgent().getId().equals(principal.getId())) {
+            throw new ResourceNotFoundException("Ticket not found with id: " + ticketId);
+        }
+
+        if (ticket.getStatus() != TicketStatus.OPEN) {
+            throw new InvalidTicketStateException("Cannot start work on ticket in status: " + ticket.getStatus());
+        }
+
+        User actor = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Actor not found with id: " + principal.getId()));
+
+        ticket.setStatus(TicketStatus.IN_PROGRESS);
+        Ticket savedTicket = ticketRepository.save(ticket);
+
+        String details = "{\"from\":\"OPEN\",\"to\":\"IN_PROGRESS\"}";
+        TicketAudit audit = new TicketAudit(savedTicket, actor, AuditAction.STATUS_CHANGED, details);
+        ticketAuditRepository.save(audit);
+
+        return TicketDetailResponse.from(savedTicket);
+    }
+
+    public TicketDetailResponse resolveTicket(UUID ticketId, UserPrincipal principal) {
+        if (principal.getRole() != UserRole.SUPPORT_AGENT) {
+            throw new AccessDeniedException("Only SUPPORT_AGENT can resolve tickets");
+        }
+
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + ticketId));
+
+        if (ticket.getAssignedAgent() == null || !ticket.getAssignedAgent().getId().equals(principal.getId())) {
+            throw new ResourceNotFoundException("Ticket not found with id: " + ticketId);
+        }
+
+        if (ticket.getStatus() != TicketStatus.IN_PROGRESS) {
+            throw new InvalidTicketStateException("Cannot resolve ticket in status: " + ticket.getStatus());
+        }
+
+        User actor = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Actor not found with id: " + principal.getId()));
+
+        ticket.setStatus(TicketStatus.RESOLVED);
+        Ticket savedTicket = ticketRepository.save(ticket);
+
+        String details = "{\"from\":\"IN_PROGRESS\",\"to\":\"RESOLVED\"}";
+        TicketAudit audit = new TicketAudit(savedTicket, actor, AuditAction.STATUS_CHANGED, details);
+        ticketAuditRepository.save(audit);
+
+        return TicketDetailResponse.from(savedTicket);
+    }
+
+    public TicketDetailResponse confirmResolution(UUID ticketId, UserPrincipal principal) {
+        if (principal.getRole() != UserRole.USER) {
+            throw new AccessDeniedException("Only USER can confirm resolution");
+        }
+
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + ticketId));
+
+        if (!ticket.getRequester().getId().equals(principal.getId())) {
+            throw new ResourceNotFoundException("Ticket not found with id: " + ticketId);
+        }
+
+        if (ticket.getStatus() != TicketStatus.RESOLVED) {
+            throw new InvalidTicketStateException("Cannot confirm resolution on ticket in status: " + ticket.getStatus());
+        }
+
+        if (ticket.getResolutionConfirmedAt() != null) {
+            throw new InvalidTicketStateException("Resolution has already been confirmed");
+        }
+
+        User actor = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Actor not found with id: " + principal.getId()));
+
+        ticket.setResolutionConfirmedAt(Instant.now());
+        ticket.setResolutionConfirmedBy(actor);
+        Ticket savedTicket = ticketRepository.save(ticket);
+
+        TicketAudit audit = new TicketAudit(savedTicket, actor, AuditAction.RESOLUTION_CONFIRMED, null);
+        ticketAuditRepository.save(audit);
+
+        return TicketDetailResponse.from(savedTicket);
+    }
+
+    public TicketDetailResponse rejectResolution(UUID ticketId, UserPrincipal principal) {
+        if (principal.getRole() != UserRole.USER) {
+            throw new AccessDeniedException("Only USER can reject resolution");
+        }
+
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + ticketId));
+
+        if (!ticket.getRequester().getId().equals(principal.getId())) {
+            throw new ResourceNotFoundException("Ticket not found with id: " + ticketId);
+        }
+
+        if (ticket.getStatus() != TicketStatus.RESOLVED) {
+            throw new InvalidTicketStateException("Cannot reject resolution on ticket in status: " + ticket.getStatus());
+        }
+
+        User actor = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Actor not found with id: " + principal.getId()));
+
+        ticket.setStatus(TicketStatus.OPEN);
+        ticket.setResolutionConfirmedAt(null);
+        ticket.setResolutionConfirmedBy(null);
+        ticket.setUpdatedAt(Instant.now());
+        Ticket savedTicket = ticketRepository.save(ticket);
+
+        TicketAudit audit = new TicketAudit(savedTicket, actor, AuditAction.TICKET_REOPENED, null);
+        ticketAuditRepository.save(audit);
+
+        return TicketDetailResponse.from(savedTicket);
+    }
+
+    public TicketDetailResponse closeTicket(UUID ticketId, UserPrincipal principal) {
+        if (principal.getRole() != UserRole.ADMIN) {
+            throw new AccessDeniedException("Only ADMIN can close tickets");
+        }
+
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ticket not found with id: " + ticketId));
+
+        if (ticket.getStatus() != TicketStatus.RESOLVED) {
+            throw new InvalidTicketStateException("Cannot close ticket in status: " + ticket.getStatus());
+        }
+
+        if (ticket.getResolutionConfirmedAt() == null || ticket.getResolutionConfirmedBy() == null) {
+            throw new InvalidTicketStateException("Cannot close ticket without resolution confirmation");
+        }
+
+        User actor = userRepository.findById(principal.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Actor not found with id: " + principal.getId()));
+
+        ticket.setStatus(TicketStatus.CLOSED);
+        Ticket savedTicket = ticketRepository.save(ticket);
+
+        TicketAudit audit = new TicketAudit(savedTicket, actor, AuditAction.TICKET_CLOSED, null);
+        ticketAuditRepository.save(audit);
+
         return TicketDetailResponse.from(savedTicket);
     }
 }

@@ -6,6 +6,7 @@ import com.hansana.helpdesk.category.repository.CategoryRepository;
 import com.hansana.helpdesk.common.dto.PagedResponse;
 import com.hansana.helpdesk.common.exception.ResourceNotFoundException;
 import com.hansana.helpdesk.common.exception.TicketNotEditableException;
+import com.hansana.helpdesk.ticket.dto.AssignTicketRequest;
 import com.hansana.helpdesk.ticket.dto.ChangePriorityRequest;
 import com.hansana.helpdesk.ticket.dto.CreateTicketRequest;
 import com.hansana.helpdesk.ticket.dto.TicketDetailResponse;
@@ -53,12 +54,16 @@ class TicketServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private com.hansana.helpdesk.audit.repository.TicketAuditRepository ticketAuditRepository;
+
     private TicketService ticketService;
 
     private User requester;
     private User otherUser;
     private User agent;
     private User otherAgent;
+    private User admin;
     private Category activeCategory;
     private Category inactiveCategory;
 
@@ -70,7 +75,7 @@ class TicketServiceTest {
 
     @BeforeEach
     void setUp() {
-        ticketService = new TicketService(ticketRepository, categoryRepository, userRepository);
+        ticketService = new TicketService(ticketRepository, categoryRepository, userRepository, ticketAuditRepository);
 
         UUID requesterId = UUID.randomUUID();
         requester = new User();
@@ -113,6 +118,13 @@ class TicketServiceTest {
         otherAgentPrincipal = new UserPrincipal(otherAgentId, "otheragent@helpdesk.dev", UserRole.SUPPORT_AGENT);
 
         UUID adminId = UUID.randomUUID();
+        admin = new User();
+        admin.setId(adminId);
+        admin.setFirstName("Admin");
+        admin.setLastName("User");
+        admin.setEmail("admin@helpdesk.dev");
+        admin.setPassword("password");
+        admin.setRole(UserRole.ADMIN);
         adminPrincipal = new UserPrincipal(adminId, "admin@helpdesk.dev", UserRole.ADMIN);
 
         activeCategory = new Category("SOFTWARE", "Software support");
@@ -440,6 +452,381 @@ class TicketServiceTest {
 
             assertEquals(TicketPriority.HIGH, response.priority());
             verify(ticketRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    class AssignmentTests {
+
+        @Test
+        void adminCanAssignUnassignedTicket_CreatesTicketAssignedAudit() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setAssignedAgent(null);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            when(userRepository.findById(adminPrincipal.getId())).thenReturn(Optional.of(admin));
+            when(userRepository.findById(agent.getId())).thenReturn(Optional.of(agent));
+            when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            AssignTicketRequest request = new AssignTicketRequest(agent.getId());
+            TicketDetailResponse response = ticketService.assignTicket(ticketId, request, adminPrincipal);
+
+            assertNotNull(response);
+            assertEquals(agent.getId(), response.assignedAgent().id());
+            org.mockito.ArgumentCaptor<com.hansana.helpdesk.audit.entity.TicketAudit> captor =
+                    org.mockito.ArgumentCaptor.forClass(com.hansana.helpdesk.audit.entity.TicketAudit.class);
+            verify(ticketAuditRepository).save(captor.capture());
+            assertEquals(com.hansana.helpdesk.audit.entity.AuditAction.TICKET_ASSIGNED, captor.getValue().getAction());
+            assertEquals(admin, captor.getValue().getActor());
+        }
+
+        @Test
+        void adminCanReassignTicket_CreatesTicketReassignedAudit() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setAssignedAgent(agent);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            when(userRepository.findById(adminPrincipal.getId())).thenReturn(Optional.of(admin));
+            when(userRepository.findById(otherAgent.getId())).thenReturn(Optional.of(otherAgent));
+            when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            AssignTicketRequest request = new AssignTicketRequest(otherAgent.getId());
+            TicketDetailResponse response = ticketService.assignTicket(ticketId, request, adminPrincipal);
+
+            assertNotNull(response);
+            assertEquals(otherAgent.getId(), response.assignedAgent().id());
+            org.mockito.ArgumentCaptor<com.hansana.helpdesk.audit.entity.TicketAudit> captor =
+                    org.mockito.ArgumentCaptor.forClass(com.hansana.helpdesk.audit.entity.TicketAudit.class);
+            verify(ticketAuditRepository).save(captor.capture());
+            assertEquals(com.hansana.helpdesk.audit.entity.AuditAction.TICKET_REASSIGNED, captor.getValue().getAction());
+            assertEquals(admin, captor.getValue().getActor());
+        }
+
+        @Test
+        void adminAssigningSameAgentThrowsConflictAndCreatesNoAudit() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setAssignedAgent(agent);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            when(userRepository.findById(adminPrincipal.getId())).thenReturn(Optional.of(admin));
+            when(userRepository.findById(agent.getId())).thenReturn(Optional.of(agent));
+
+            AssignTicketRequest request = new AssignTicketRequest(agent.getId());
+            assertThrows(com.hansana.helpdesk.common.exception.InvalidTicketStateException.class,
+                    () -> ticketService.assignTicket(ticketId, request, adminPrincipal));
+
+            verify(ticketAuditRepository, never()).save(any());
+        }
+
+        @Test
+        void adminCanUnassignTicket_CreatesTicketUnassignedAudit() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setAssignedAgent(agent);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            when(userRepository.findById(adminPrincipal.getId())).thenReturn(Optional.of(admin));
+            when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            ticketService.unassignTicket(ticketId, adminPrincipal);
+
+            org.mockito.ArgumentCaptor<com.hansana.helpdesk.audit.entity.TicketAudit> captor =
+                    org.mockito.ArgumentCaptor.forClass(com.hansana.helpdesk.audit.entity.TicketAudit.class);
+            verify(ticketAuditRepository).save(captor.capture());
+            assertEquals(com.hansana.helpdesk.audit.entity.AuditAction.TICKET_UNASSIGNED, captor.getValue().getAction());
+            assertEquals(admin, captor.getValue().getActor());
+        }
+
+        @Test
+        void adminUnassigningAlreadyUnassignedTicketThrowsConflict() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setAssignedAgent(null);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+
+            assertThrows(com.hansana.helpdesk.common.exception.InvalidTicketStateException.class,
+                    () -> ticketService.unassignTicket(ticketId, adminPrincipal));
+
+            verify(ticketAuditRepository, never()).save(any());
+        }
+
+        @Test
+        void nonAdminCannotAssignOrUnassign() {
+            UUID ticketId = UUID.randomUUID();
+            AssignTicketRequest request = new AssignTicketRequest(agent.getId());
+
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> ticketService.assignTicket(ticketId, request, agentPrincipal));
+
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> ticketService.assignTicket(ticketId, request, requesterPrincipal));
+
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> ticketService.unassignTicket(ticketId, agentPrincipal));
+
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> ticketService.unassignTicket(ticketId, requesterPrincipal));
+        }
+
+        @Test
+        void cannotAssignToUserOrAdminOrInactive() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            when(userRepository.findById(adminPrincipal.getId())).thenReturn(Optional.of(admin));
+
+            User inactiveAgent = new User();
+            inactiveAgent.setId(UUID.randomUUID());
+            inactiveAgent.setRole(UserRole.SUPPORT_AGENT);
+            inactiveAgent.setActive(false);
+            when(userRepository.findById(inactiveAgent.getId())).thenReturn(Optional.of(inactiveAgent));
+
+            when(userRepository.findById(requester.getId())).thenReturn(Optional.of(requester));
+            when(userRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> ticketService.assignTicket(ticketId, new AssignTicketRequest(inactiveAgent.getId()), adminPrincipal));
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> ticketService.assignTicket(ticketId, new AssignTicketRequest(requester.getId()), adminPrincipal));
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> ticketService.assignTicket(ticketId, new AssignTicketRequest(admin.getId()), adminPrincipal));
+        }
+    }
+
+    @Nested
+    class WorkflowTests {
+
+        @Test
+        void assignedAgentStartsOpenTicket() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.OPEN);
+            ticket.setAssignedAgent(agent);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            when(userRepository.findById(agentPrincipal.getId())).thenReturn(Optional.of(agent));
+            when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            TicketDetailResponse response = ticketService.startWork(ticketId, agentPrincipal);
+
+            assertEquals(TicketStatus.IN_PROGRESS, response.status());
+            org.mockito.ArgumentCaptor<com.hansana.helpdesk.audit.entity.TicketAudit> captor =
+                    org.mockito.ArgumentCaptor.forClass(com.hansana.helpdesk.audit.entity.TicketAudit.class);
+            verify(ticketAuditRepository).save(captor.capture());
+            assertEquals(com.hansana.helpdesk.audit.entity.AuditAction.STATUS_CHANGED, captor.getValue().getAction());
+            assertEquals(agent, captor.getValue().getActor());
+        }
+
+        @Test
+        void unassignedOrWrongAgentOrNonAgentCannotStartWork() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.OPEN);
+
+            // Unassigned ticket -> 404 for agent
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            assertThrows(ResourceNotFoundException.class, () -> ticketService.startWork(ticketId, agentPrincipal));
+
+            // Assigned to another agent -> 404 for different agent
+            ticket.setAssignedAgent(otherAgent);
+            assertThrows(ResourceNotFoundException.class, () -> ticketService.startWork(ticketId, agentPrincipal));
+
+            // USER and ADMIN -> 403
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> ticketService.startWork(ticketId, requesterPrincipal));
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> ticketService.startWork(ticketId, adminPrincipal));
+        }
+
+        @Test
+        void startingNonOpenTicketThrowsConflict() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.IN_PROGRESS);
+            ticket.setAssignedAgent(agent);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            assertThrows(com.hansana.helpdesk.common.exception.InvalidTicketStateException.class,
+                    () -> ticketService.startWork(ticketId, agentPrincipal));
+        }
+
+        @Test
+        void assignedAgentResolvesInProgressTicket() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.IN_PROGRESS);
+            ticket.setAssignedAgent(agent);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            when(userRepository.findById(agentPrincipal.getId())).thenReturn(Optional.of(agent));
+            when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            TicketDetailResponse response = ticketService.resolveTicket(ticketId, agentPrincipal);
+
+            assertEquals(TicketStatus.RESOLVED, response.status());
+            org.mockito.ArgumentCaptor<com.hansana.helpdesk.audit.entity.TicketAudit> captor =
+                    org.mockito.ArgumentCaptor.forClass(com.hansana.helpdesk.audit.entity.TicketAudit.class);
+            verify(ticketAuditRepository).save(captor.capture());
+            assertEquals(com.hansana.helpdesk.audit.entity.AuditAction.STATUS_CHANGED, captor.getValue().getAction());
+            assertEquals(agent, captor.getValue().getActor());
+        }
+
+        @Test
+        void resolvingNonInProgressTicketThrowsConflict() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.OPEN);
+            ticket.setAssignedAgent(agent);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            assertThrows(com.hansana.helpdesk.common.exception.InvalidTicketStateException.class,
+                    () -> ticketService.resolveTicket(ticketId, agentPrincipal));
+        }
+
+        @Test
+        void requesterConfirmsResolvedTicket() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.RESOLVED);
+            ticket.setAssignedAgent(agent);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            when(userRepository.findById(requesterPrincipal.getId())).thenReturn(Optional.of(requester));
+            when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            TicketDetailResponse response = ticketService.confirmResolution(ticketId, requesterPrincipal);
+
+            assertEquals(TicketStatus.RESOLVED, response.status());
+            assertNotNull(response.resolutionConfirmedAt());
+            assertEquals(requester.getId(), response.resolutionConfirmedBy().id());
+            assertEquals(agent.getId(), response.assignedAgent().id());
+
+            org.mockito.ArgumentCaptor<com.hansana.helpdesk.audit.entity.TicketAudit> captor =
+                    org.mockito.ArgumentCaptor.forClass(com.hansana.helpdesk.audit.entity.TicketAudit.class);
+            verify(ticketAuditRepository).save(captor.capture());
+            assertEquals(com.hansana.helpdesk.audit.entity.AuditAction.RESOLUTION_CONFIRMED, captor.getValue().getAction());
+            assertEquals(requester, captor.getValue().getActor());
+        }
+
+        @Test
+        void nonRequesterOrNonResolvedTicketCannotConfirmResolution() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.RESOLVED);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+
+            // Other user gets 404
+            assertThrows(ResourceNotFoundException.class,
+                    () -> ticketService.confirmResolution(ticketId, otherUserPrincipal));
+
+            // Agent / Admin get 403
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> ticketService.confirmResolution(ticketId, agentPrincipal));
+
+            // Non-resolved ticket throws 409 Conflict for requester
+            ticket.setStatus(TicketStatus.OPEN);
+            assertThrows(com.hansana.helpdesk.common.exception.InvalidTicketStateException.class,
+                    () -> ticketService.confirmResolution(ticketId, requesterPrincipal));
+        }
+
+        @Test
+        void requesterRejectsResolvedTicket_ReopensToOpenAndClearsConfirmation() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.RESOLVED);
+            ticket.setAssignedAgent(agent);
+            ticket.setResolutionConfirmedAt(java.time.Instant.now());
+            ticket.setResolutionConfirmedBy(requester);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            when(userRepository.findById(requesterPrincipal.getId())).thenReturn(Optional.of(requester));
+            when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            TicketDetailResponse response = ticketService.rejectResolution(ticketId, requesterPrincipal);
+
+            assertEquals(TicketStatus.OPEN, response.status());
+            org.junit.jupiter.api.Assertions.assertNull(response.resolutionConfirmedAt());
+            org.junit.jupiter.api.Assertions.assertNull(response.resolutionConfirmedBy());
+            assertEquals(agent.getId(), response.assignedAgent().id());
+
+            org.mockito.ArgumentCaptor<com.hansana.helpdesk.audit.entity.TicketAudit> captor =
+                    org.mockito.ArgumentCaptor.forClass(com.hansana.helpdesk.audit.entity.TicketAudit.class);
+            verify(ticketAuditRepository).save(captor.capture());
+            assertEquals(com.hansana.helpdesk.audit.entity.AuditAction.TICKET_REOPENED, captor.getValue().getAction());
+            assertEquals(requester, captor.getValue().getActor());
+        }
+
+        @Test
+        void adminClosesConfirmedResolvedTicket() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.RESOLVED);
+            ticket.setResolutionConfirmedAt(java.time.Instant.now());
+            ticket.setResolutionConfirmedBy(requester);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            when(userRepository.findById(adminPrincipal.getId())).thenReturn(Optional.of(admin));
+            when(ticketRepository.save(any(Ticket.class))).thenAnswer(inv -> inv.getArgument(0));
+
+            TicketDetailResponse response = ticketService.closeTicket(ticketId, adminPrincipal);
+
+            assertEquals(TicketStatus.CLOSED, response.status());
+
+            org.mockito.ArgumentCaptor<com.hansana.helpdesk.audit.entity.TicketAudit> captor =
+                    org.mockito.ArgumentCaptor.forClass(com.hansana.helpdesk.audit.entity.TicketAudit.class);
+            verify(ticketAuditRepository).save(captor.capture());
+            assertEquals(com.hansana.helpdesk.audit.entity.AuditAction.TICKET_CLOSED, captor.getValue().getAction());
+            assertEquals(admin, captor.getValue().getActor());
+        }
+
+        @Test
+        void adminCannotCloseUnconfirmedOrNonResolvedTicket() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.RESOLVED);
+            ticket.setResolutionConfirmedAt(null);
+            ticket.setResolutionConfirmedBy(null);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+
+            // Unconfirmed -> 409
+            assertThrows(com.hansana.helpdesk.common.exception.InvalidTicketStateException.class,
+                    () -> ticketService.closeTicket(ticketId, adminPrincipal));
+
+            // Non-resolved -> 409
+            ticket.setStatus(TicketStatus.IN_PROGRESS);
+            assertThrows(com.hansana.helpdesk.common.exception.InvalidTicketStateException.class,
+                    () -> ticketService.closeTicket(ticketId, adminPrincipal));
+
+            // Non-admin -> 403
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> ticketService.closeTicket(ticketId, agentPrincipal));
+            assertThrows(org.springframework.security.access.AccessDeniedException.class,
+                    () -> ticketService.closeTicket(ticketId, requesterPrincipal));
         }
     }
 }

@@ -305,5 +305,134 @@ class TicketControllerSecurityTest {
                     .andExpect(jsonPath("$.status", is(400)));
         }
     }
+
+    @Nested
+    class AssignmentEndpointSecurityTests {
+
+        @Test
+        void unauthenticatedCannotAssignOrUnassign() throws Exception {
+            com.hansana.helpdesk.ticket.dto.AssignTicketRequest req =
+                    new com.hansana.helpdesk.ticket.dto.AssignTicketRequest(UUID.randomUUID());
+
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/tickets/" + sampleId + "/assignment")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(req)))
+                    .andExpect(status().isUnauthorized());
+
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/v1/tickets/" + sampleId + "/assignment"))
+                    .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        @WithMockUser(username = "user@helpdesk.dev", roles = {"USER"})
+        void userCannotAssignOrUnassign_Forbidden403() throws Exception {
+            com.hansana.helpdesk.ticket.dto.AssignTicketRequest req =
+                    new com.hansana.helpdesk.ticket.dto.AssignTicketRequest(UUID.randomUUID());
+
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/tickets/" + sampleId + "/assignment")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(req)))
+                    .andExpect(status().isForbidden());
+
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/v1/tickets/" + sampleId + "/assignment"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(username = "agent@helpdesk.dev", roles = {"SUPPORT_AGENT"})
+        void supportAgentCannotAssignOrUnassign_Forbidden403() throws Exception {
+            com.hansana.helpdesk.ticket.dto.AssignTicketRequest req =
+                    new com.hansana.helpdesk.ticket.dto.AssignTicketRequest(UUID.randomUUID());
+
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/tickets/" + sampleId + "/assignment")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(req)))
+                    .andExpect(status().isForbidden());
+
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/v1/tickets/" + sampleId + "/assignment"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(username = "admin@helpdesk.dev", roles = {"ADMIN"})
+        void adminCanAssignAndUnassign() throws Exception {
+            com.hansana.helpdesk.ticket.dto.AssignTicketRequest req =
+                    new com.hansana.helpdesk.ticket.dto.AssignTicketRequest(UUID.randomUUID());
+            when(ticketService.assignTicket(eq(sampleId), any(), any())).thenReturn(createSampleTicketDetail());
+
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/tickets/" + sampleId + "/assignment")
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(req)))
+                    .andExpect(status().isOk());
+
+            mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete("/api/v1/tickets/" + sampleId + "/assignment"))
+                    .andExpect(status().isNoContent());
+        }
+    }
+
+    @Nested
+    class WorkflowEndpointSecurityTests {
+
+        @Test
+        @WithMockUser(username = "user@helpdesk.dev", roles = {"USER"})
+        void userCanConfirmAndRejectResolution() throws Exception {
+            when(ticketService.confirmResolution(eq(sampleId), any())).thenReturn(createSampleTicketDetail());
+            when(ticketService.rejectResolution(eq(sampleId), any())).thenReturn(createSampleTicketDetail());
+
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/confirm-resolution"))
+                    .andExpect(status().isOk());
+
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/reject-resolution"))
+                    .andExpect(status().isOk());
+
+            // USER cannot start, resolve, or close
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/start"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/resolve"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/close"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(username = "agent@helpdesk.dev", roles = {"SUPPORT_AGENT"})
+        void agentCanStartAndResolve() throws Exception {
+            when(ticketService.startWork(eq(sampleId), any())).thenReturn(createSampleTicketDetail());
+            when(ticketService.resolveTicket(eq(sampleId), any())).thenReturn(createSampleTicketDetail());
+
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/start"))
+                    .andExpect(status().isOk());
+
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/resolve"))
+                    .andExpect(status().isOk());
+
+            // Agent cannot confirm, reject, or close
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/confirm-resolution"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/reject-resolution"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/close"))
+                    .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(username = "admin@helpdesk.dev", roles = {"ADMIN"})
+        void adminCanClose() throws Exception {
+            when(ticketService.closeTicket(eq(sampleId), any())).thenReturn(createSampleTicketDetail());
+
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/close"))
+                    .andExpect(status().isOk());
+
+            // Admin cannot start, resolve, confirm, or reject as user/agent
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/start"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/resolve"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/confirm-resolution"))
+                    .andExpect(status().isForbidden());
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/reject-resolution"))
+                    .andExpect(status().isForbidden());
+        }
+    }
 }
 
