@@ -13,6 +13,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -73,6 +74,7 @@ public class CommentController {
      * Access: ADMIN only (enforced at URL level in SecurityConfig and by service ADMIN role check).
      * Returns audit history for the ticket ordered createdAt DESC.
      */
+    @Transactional(readOnly = true)
     @GetMapping("/{ticketId}/audit")
     public ResponseEntity<List<AuditResponse>> getAuditHistory(
             @PathVariable("ticketId") UUID ticketId,

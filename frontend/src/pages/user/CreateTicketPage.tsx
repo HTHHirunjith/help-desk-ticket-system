@@ -1,35 +1,69 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { ticketService } from '@/services';
-import type { TicketCategory, TicketPriority } from '@/types';
+import { ticketApi, categoryApi } from '@/api/tickets';
+import { extractErrorMessage } from '@/api/auth';
+import type { Category, TicketPriority } from '@/types';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Button, Input, Textarea, Select, Card } from '@/components/ui';
+import { Button, Input, Textarea, Select, Card, InlineLoader } from '@/components/ui';
 import { PriorityBadge } from '@/components/ui/Badge';
 import { Send, ArrowLeft } from 'lucide-react';
 
-const categories: TicketCategory[] = ['GENERAL', 'TECHNICAL', 'BILLING', 'ACCOUNT', 'BUG_REPORT', 'FEATURE_REQUEST'];
 const priorities: TicketPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
 export function CreateTicketPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<TicketCategory>('GENERAL');
+  const [categoryId, setCategoryId] = useState<string>('');
   const [priority, setPriority] = useState<TicketPriority>('MEDIUM');
-  const [errors, setErrors] = useState<{ title?: string; description?: string }>({});
+  const [errors, setErrors] = useState<{ title?: string; description?: string; categoryId?: string }>({});
+
+  useEffect(() => {
+    let isMounted = true;
+    (async () => {
+      try {
+        setLoadingCategories(true);
+        // Load only active categories from backend
+        const cats = await categoryApi.getCategories(true);
+        if (isMounted) {
+          setCategories(cats);
+          if (cats.length > 0) {
+            setCategoryId(cats[0].id);
+          }
+        }
+      } catch (err) {
+        if (isMounted) {
+          setError(extractErrorMessage(err, 'Failed to load categories.'));
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingCategories(false);
+        }
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const validate = (): boolean => {
     const e: typeof errors = {};
     if (!title.trim()) e.title = 'Title is required.';
-    else if (title.trim().length < 5) e.title = 'Title must be at least 5 characters.';
+    else if (title.trim().length > 200) e.title = 'Title must not exceed 200 characters.';
+
     if (!description.trim()) e.description = 'Description is required.';
-    else if (description.trim().length < 20) e.description = 'Description must be at least 20 characters.';
+
+    if (!categoryId) e.categoryId = 'Category is required.';
+
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -38,18 +72,29 @@ export function CreateTicketPage() {
     e.preventDefault();
     setError(null);
     if (!validate() || !user) return;
+
     setSubmitting(true);
     try {
-      const ticket = await ticketService.createTicket(
-        { title: title.trim(), description: description.trim(), category, priority },
-        user
-      );
-      navigate(`/tickets/${ticket.id}`);
-    } catch {
-      setError('Failed to create ticket. Please try again.');
+      const createdTicket = await ticketApi.createTicket({
+        title: title.trim(),
+        description: description.trim(),
+        categoryId,
+        priority,
+      });
+      navigate(`/tickets/${createdTicket.id}`);
+    } catch (err) {
+      setError(extractErrorMessage(err, 'Failed to create ticket. Please try again.'));
       setSubmitting(false);
     }
   };
+
+  if (loadingCategories) {
+    return (
+      <AppLayout>
+        <InlineLoader message="Loading categories..." />
+      </AppLayout>
+    );
+  }
 
   return (
     <AppLayout>
@@ -94,15 +139,25 @@ export function CreateTicketPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <Select
-                name="category"
+                name="categoryId"
                 label="Category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value as TicketCategory)}
+                value={categoryId}
+                onChange={(e) => {
+                  setCategoryId(e.target.value);
+                  if (errors.categoryId) setErrors((p) => ({ ...p, categoryId: undefined }));
+                }}
+                error={errors.categoryId}
                 disabled={submitting}
               >
-                {categories.map((c) => (
-                  <option key={c} value={c}>{c.replace(/_/g, ' ')}</option>
-                ))}
+                {categories.length === 0 ? (
+                  <option value="">No active categories available</option>
+                ) : (
+                  categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name.replace(/_/g, ' ')}
+                    </option>
+                  ))
+                )}
               </Select>
 
               <div>
@@ -137,7 +192,12 @@ export function CreateTicketPage() {
               <Button type="button" variant="outline" onClick={() => navigate('/my-tickets')} disabled={submitting}>
                 Cancel
               </Button>
-              <Button type="submit" loading={submitting} leftIcon={<Send size={16} />}>
+              <Button
+                type="submit"
+                loading={submitting}
+                leftIcon={<Send size={16} />}
+                disabled={categories.length === 0}
+              >
                 {submitting ? 'Creating...' : 'Submit Ticket'}
               </Button>
             </div>

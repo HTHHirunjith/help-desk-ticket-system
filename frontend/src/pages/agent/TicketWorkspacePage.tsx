@@ -1,122 +1,344 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { ticketService } from '@/services';
-import type { Ticket, TicketStatus, TicketPriority } from '@/types';
+import { ticketApi, commentApi, auditApi } from '@/api/tickets';
+import { extractErrorMessage } from '@/api/auth';
+import type { TicketDetail, TicketPriority, Comment, AuditEntry } from '@/types';
 import { AppLayout } from '@/components/layout/AppLayout';
-import { Card, CardHeader, Button, InlineLoader, EmptyState, ErrorState, Select, Textarea } from '@/components/ui';
+import {
+  Card,
+  CardHeader,
+  Button,
+  InlineLoader,
+  EmptyState,
+  ErrorState,
+  Select,
+  Textarea,
+  Input,
+  Modal,
+} from '@/components/ui';
 import { StatusBadge, PriorityBadge, CategoryBadge } from '@/components/ui/Badge';
 import { formatDateTime, timeAgo } from '@/utils/format';
-import { ArrowLeft, MessageSquare, User as UserIcon, Calendar, Tag, Clock, Send } from 'lucide-react';
+import {
+  ArrowLeft,
+  MessageSquare,
+  User as UserIcon,
+  Calendar,
+  Tag,
+  Clock,
+  Send,
+  Play,
+  CheckCircle,
+  Lock,
+  History,
+  AlertCircle,
+  CheckCircle2,
+  UserPlus,
+  UserMinus,
+} from 'lucide-react';
 
-const allStatuses: TicketStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 const allPriorities: TicketPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
 
 export function TicketWorkspacePage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [ticket, setTicket] = useState<Ticket | null>(null);
+
+  const [ticket, setTicket] = useState<TicketDetail | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [audits, setAudits] = useState<AuditEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Comment state
   const [commentBody, setCommentBody] = useState('');
   const [submittingComment, setSubmittingComment] = useState(false);
-  const [updating, setUpdating] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
+
+  // Priority state
+  const [changingPriority, setChangingPriority] = useState(false);
+
+  // Workflow action state
+  const [workflowActionRunning, setWorkflowActionRunning] = useState(false);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Assignment modal state (ADMIN only)
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [targetAgentId, setTargetAgentId] = useState('');
+  const [assigning, setAssigning] = useState(false);
+  const [assignError, setAssignError] = useState<string | null>(null);
+
+  const isAdmin = user?.role === 'ADMIN';
+  const isAgent = user?.role === 'SUPPORT_AGENT';
+
+  const fetchTicketData = async (ticketId: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const promises: [Promise<TicketDetail>, Promise<Comment[]>, Promise<AuditEntry[]>?] = [
+        ticketApi.getTicketById(ticketId),
+        commentApi.getComments(ticketId),
+      ];
+
+      if (user?.role === 'ADMIN') {
+        promises.push(auditApi.getAuditHistory(ticketId));
+      }
+
+      const [ticketData, commentsData, auditData] = await Promise.all(promises);
+      setTicket(ticketData);
+      setComments(commentsData);
+      if (auditData) {
+        setAudits(auditData);
+      }
+    } catch (err) {
+      setError(extractErrorMessage(err, 'Failed to load ticket workspace.'));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
-    (async () => {
-      setLoading(true);
-      setError(false);
-      const t = await ticketService.getTicketById(id);
-      setTicket(t);
-      setLoading(false);
-    })();
-  }, [id]);
+    fetchTicketData(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, user?.role]);
 
-  const handleStatusChange = async (newStatus: TicketStatus) => {
-    if (!id || !ticket) return;
-    setUpdating(true);
-    const updated = await ticketService.updateTicket(id, { status: newStatus });
-    if (updated) setTicket(updated);
-    setUpdating(false);
-  };
-
+  // Handle priority change (SUPPORT_AGENT assigned or ADMIN)
   const handlePriorityChange = async (newPriority: TicketPriority) => {
-    if (!id || !ticket) return;
-    setUpdating(true);
-    const updated = await ticketService.updateTicket(id, { priority: newPriority });
-    if (updated) setTicket(updated);
-    setUpdating(false);
+    if (!id || !ticket || ticket.priority === newPriority) return;
+    setChangingPriority(true);
+    setActionError(null);
+    try {
+      const updated = await ticketApi.changePriority(id, { priority: newPriority });
+      setTicket(updated);
+      setActionSuccess(`Priority changed to ${newPriority}`);
+    } catch (err) {
+      setActionError(extractErrorMessage(err, 'Failed to change priority.'));
+    } finally {
+      setChangingPriority(false);
+    }
   };
 
+  // Handle adding comment
   const handleAddComment = async () => {
-    if (!id || !user || !commentBody.trim()) return;
+    if (!id || !commentBody.trim()) return;
     setSubmittingComment(true);
-    await ticketService.addComment(
-      id,
-      user.id,
-      `${user.firstName} ${user.lastName}`,
-      user.role,
-      commentBody.trim()
-    );
-    const updated = await ticketService.getTicketById(id);
-    setTicket(updated);
-    setCommentBody('');
-    setSubmittingComment(false);
+    setCommentError(null);
+    try {
+      const newComment = await commentApi.addComment(id, { body: commentBody.trim() });
+      setComments((prev) => [...prev, newComment]);
+      setCommentBody('');
+    } catch (err) {
+      setCommentError(extractErrorMessage(err, 'Failed to add comment.'));
+    } finally {
+      setSubmittingComment(false);
+    }
   };
 
-  if (loading) return <AppLayout><InlineLoader message="Loading ticket workspace..." /></AppLayout>;
-  if (error || !ticket) return (
-    <AppLayout>
-      <ErrorState title="Ticket not found" message="This ticket may have been deleted or you do not have access." onRetry={() => navigate(-1)} />
-    </AppLayout>
-  );
+  // Workflow actions
+  const handleStartWork = async () => {
+    if (!id) return;
+    setWorkflowActionRunning(true);
+    setActionError(null);
+    try {
+      const updated = await ticketApi.startWork(id);
+      setTicket(updated);
+      setActionSuccess('Work started on this ticket (status is now In Progress).');
+    } catch (err) {
+      setActionError(extractErrorMessage(err, 'Failed to start work on ticket.'));
+    } finally {
+      setWorkflowActionRunning(false);
+    }
+  };
+
+  const handleResolveTicket = async () => {
+    if (!id) return;
+    setWorkflowActionRunning(true);
+    setActionError(null);
+    try {
+      const updated = await ticketApi.resolveTicket(id);
+      setTicket(updated);
+      setActionSuccess('Ticket marked as Resolved. Requester can now confirm resolution.');
+    } catch (err) {
+      setActionError(extractErrorMessage(err, 'Failed to resolve ticket.'));
+    } finally {
+      setWorkflowActionRunning(false);
+    }
+  };
+
+  const handleCloseTicket = async () => {
+    if (!id) return;
+    setWorkflowActionRunning(true);
+    setActionError(null);
+    try {
+      const updated = await ticketApi.closeTicket(id);
+      setTicket(updated);
+      setActionSuccess('Ticket closed permanently.');
+    } catch (err) {
+      setActionError(extractErrorMessage(err, 'Failed to close ticket.'));
+    } finally {
+      setWorkflowActionRunning(false);
+    }
+  };
+
+  // Assignment actions (ADMIN only)
+  const handleAssignTicket = async () => {
+    if (!id || !targetAgentId.trim()) return;
+    setAssigning(true);
+    setAssignError(null);
+    try {
+      const updated = await ticketApi.assignTicket(id, { agentId: targetAgentId.trim() });
+      setTicket(updated);
+      setAssignModalOpen(false);
+      setTargetAgentId('');
+      setActionSuccess('Ticket assigned successfully.');
+      // Refresh audits if admin
+      if (isAdmin) {
+        const updatedAudits = await auditApi.getAuditHistory(id);
+        setAudits(updatedAudits);
+      }
+    } catch (err) {
+      setAssignError(extractErrorMessage(err, 'Failed to assign ticket.'));
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  const handleUnassignTicket = async () => {
+    if (!id) return;
+    setAssigning(true);
+    setActionError(null);
+    try {
+      await ticketApi.unassignTicket(id);
+      // Re-fetch ticket to get updated state
+      const updated = await ticketApi.getTicketById(id);
+      setTicket(updated);
+      setActionSuccess('Ticket unassigned successfully.');
+      if (isAdmin) {
+        const updatedAudits = await auditApi.getAuditHistory(id);
+        setAudits(updatedAudits);
+      }
+    } catch (err) {
+      setActionError(extractErrorMessage(err, 'Failed to unassign ticket.'));
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <AppLayout>
+        <InlineLoader message="Loading ticket workspace..." />
+      </AppLayout>
+    );
+  }
+
+  if (error || !ticket) {
+    return (
+      <AppLayout>
+        <ErrorState
+          title="Ticket not found"
+          message={error || 'This ticket may have been deleted or you do not have permission to view it.'}
+          onRetry={() => navigate(-1)}
+        />
+      </AppLayout>
+    );
+  }
+
+  const isAssignedAgent = isAgent && ticket.assignedAgent?.id === user?.id;
+  const canStart = isAssignedAgent && ticket.status === 'OPEN';
+  const canResolve = isAssignedAgent && ticket.status === 'IN_PROGRESS';
+  const canClose = isAdmin && ticket.status === 'RESOLVED' && ticket.resolutionConfirmedAt !== null;
 
   return (
     <AppLayout>
       <div className="mb-6">
         <Button variant="ghost" leftIcon={<ArrowLeft size={18} />} onClick={() => navigate(-1)}>
-          Back to Assigned Tickets
+          Back
         </Button>
       </div>
+
+      {actionSuccess && (
+        <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-sm text-emerald-800 flex items-center gap-2">
+          <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
+          <span>{actionSuccess}</span>
+        </div>
+      )}
+      {actionError && (
+        <div className="mb-6 p-4 rounded-xl bg-red-50 border border-red-200 text-sm text-red-800 flex items-center gap-2">
+          <AlertCircle size={18} className="text-red-600 shrink-0" />
+          <span>{actionError}</span>
+        </div>
+      )}
+
+      {/* Reopened Banner Notice */}
+      {ticket.status === 'OPEN' && ticket.assignedAgent && (
+        <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900 flex items-center gap-2">
+          <AlertCircle size={18} className="text-amber-600 shrink-0" />
+          <div>
+            <span className="font-semibold">Reopened Ticket: </span>
+            <span>
+              The requester rejected the resolution and this ticket was returned to Open. Please review and start work.
+            </span>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main column */}
         <div className="lg:col-span-2 space-y-6">
           <Card>
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-xs font-mono font-medium text-slate-500">{ticket.ticketNumber}</span>
+              <span className="text-xs font-mono font-medium text-slate-500">#{ticket.ticketNumber}</span>
               <StatusBadge status={ticket.status} />
               <PriorityBadge priority={ticket.priority} />
-              <CategoryBadge category={ticket.category} />
+              <CategoryBadge category={ticket.category.name} />
+              {ticket.resolutionConfirmedAt && (
+                <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+                  <CheckCircle2 size={12} /> Confirmed
+                </span>
+              )}
             </div>
             <h1 className="text-xl font-bold text-slate-900 mb-3">{ticket.title}</h1>
             <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
             <div className="flex items-center gap-4 mt-5 pt-4 border-t border-slate-100 text-xs text-slate-400">
-              <span className="flex items-center gap-1"><Calendar size={13} /> Created {formatDateTime(ticket.createdAt)}</span>
-              <span className="flex items-center gap-1"><Clock size={13} /> Updated {timeAgo(ticket.updatedAt)}</span>
+              <span className="flex items-center gap-1">
+                <Calendar size={13} /> Created {formatDateTime(ticket.createdAt)}
+              </span>
+              <span className="flex items-center gap-1">
+                <Clock size={13} /> Updated {timeAgo(ticket.updatedAt)}
+              </span>
             </div>
           </Card>
 
           {/* Comments */}
           <Card>
-            <CardHeader title="Comments & Activity" subtitle={`${ticket.comments.length} comment${ticket.comments.length === 1 ? '' : 's'}`} icon={<MessageSquare size={16} />} />
-            {ticket.comments.length === 0 ? (
+            <CardHeader
+              title="Comments & Activity"
+              subtitle={`${comments.length} comment${comments.length === 1 ? '' : 's'}`}
+              icon={<MessageSquare size={16} />}
+            />
+            {comments.length === 0 ? (
               <EmptyState title="No comments yet" description="Add a comment to start the conversation on this ticket." />
             ) : (
               <div className="space-y-4">
-                {ticket.comments.map((comment) => (
+                {comments.map((comment) => (
                   <div key={comment.id} className="flex gap-3">
                     <div className="flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-700 text-xs font-semibold shrink-0">
-                      {comment.authorName.split(' ').map((n) => n[0]).join('').toUpperCase()}
+                      {comment.author.name
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .toUpperCase()}
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-slate-900">{comment.authorName}</span>
+                        <span className="text-sm font-medium text-slate-900">{comment.author.name}</span>
                         <span className="text-xs text-slate-400">{timeAgo(comment.createdAt)}</span>
                       </div>
-                      <p className="text-sm text-slate-600 leading-relaxed">{comment.body}</p>
+                      <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{comment.body}</p>
                     </div>
                   </div>
                 ))}
@@ -132,6 +354,7 @@ export function TicketWorkspacePage() {
                 onChange={(e) => setCommentBody(e.target.value)}
                 disabled={submittingComment}
               />
+              {commentError && <p className="mt-2 text-xs text-red-600">{commentError}</p>}
               <div className="flex justify-end mt-3">
                 <Button
                   size="sm"
@@ -145,53 +368,210 @@ export function TicketWorkspacePage() {
               </div>
             </div>
           </Card>
+
+          {/* Audit History (ADMIN Only) */}
+          {isAdmin && (
+            <Card>
+              <CardHeader
+                title="Audit Timeline"
+                subtitle={`Recorded system events (${audits.length})`}
+                icon={<History size={16} />}
+              />
+              {audits.length === 0 ? (
+                <EmptyState title="No audit entries" description="No system audit logs found for this ticket." />
+              ) : (
+                <div className="space-y-3">
+                  {audits.map((a) => (
+                    <div
+                      key={a.id}
+                      className="p-3 rounded-lg border border-slate-100 bg-slate-50 text-xs text-slate-700 flex flex-col gap-1"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-900 font-mono">{a.action}</span>
+                        <span className="text-slate-400">{formatDateTime(a.createdAt)}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500">Actor: </span>
+                        <span className="font-medium text-slate-800">
+                          {a.actor ? `${a.actor.name} (${a.actor.role})` : 'System'}
+                        </span>
+                      </div>
+                      {a.details && (
+                        <div className="mt-1 font-mono text-[11px] text-slate-600 bg-white p-2 rounded border border-slate-200 overflow-x-auto">
+                          {a.details}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          )}
         </div>
 
-        {/* Sidebar — Agent controls */}
+        {/* Sidebar — Controls */}
         <div className="space-y-6">
           <Card>
             <CardHeader title="Ticket Details" />
             <div className="space-y-4">
-              <DetailRow icon={<UserIcon size={15} />} label="Requester" value={ticket.requesterName} />
-              <DetailRow icon={<UserIcon size={15} />} label="Assigned Agent" value={ticket.assignedAgentName || 'Unassigned'} />
-              <DetailRow icon={<Tag size={15} />} label="Category" value={ticket.category.replace(/_/g, ' ')} />
+              <DetailRow icon={<UserIcon size={15} />} label="Requester" value={ticket.requester.name} />
+              <DetailRow
+                icon={<UserIcon size={15} />}
+                label="Assigned Agent"
+                value={ticket.assignedAgent?.name || 'Unassigned'}
+              />
+              <DetailRow icon={<Tag size={15} />} label="Category" value={ticket.category.name.replace(/_/g, ' ')} />
               <DetailRow icon={<Calendar size={15} />} label="Created" value={formatDateTime(ticket.createdAt)} />
               <DetailRow icon={<Clock size={15} />} label="Last Updated" value={formatDateTime(ticket.updatedAt)} />
+              {ticket.resolutionConfirmedAt && (
+                <DetailRow
+                  icon={<CheckCircle2 size={15} />}
+                  label="Resolution Confirmed"
+                  value={formatDateTime(ticket.resolutionConfirmedAt)}
+                />
+              )}
             </div>
           </Card>
 
-          <Card>
-            <CardHeader title="Agent Controls" subtitle="Update ticket status and priority" />
-            <div className="space-y-4">
-              <Select
-                name="status"
-                label="Status"
-                value={ticket.status}
-                onChange={(e) => handleStatusChange(e.target.value as TicketStatus)}
-                disabled={updating}
-              >
-                {allStatuses.map((s) => (
-                  <option key={s} value={s}>{s === 'IN_PROGRESS' ? 'In Progress' : s.charAt(0) + s.slice(1).toLowerCase()}</option>
-                ))}
-              </Select>
+          {/* Workflow & Priority Controls */}
+          {(isAssignedAgent || isAdmin) && (
+            <Card>
+              <CardHeader
+                title="Management Controls"
+                subtitle={isAdmin ? 'Administrative actions' : 'Agent workflow'}
+              />
+              <div className="space-y-4">
+                {/* Priority Selector */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Change Priority</label>
+                  <Select
+                    name="priority"
+                    value={ticket.priority}
+                    onChange={(e) => handlePriorityChange(e.target.value as TicketPriority)}
+                    disabled={changingPriority}
+                  >
+                    {allPriorities.map((p) => (
+                      <option key={p} value={p}>
+                        {p.charAt(0) + p.slice(1).toLowerCase()}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
 
-              <Select
-                name="priority"
-                label="Priority"
-                value={ticket.priority}
-                onChange={(e) => handlePriorityChange(e.target.value as TicketPriority)}
-                disabled={updating}
-              >
-                {allPriorities.map((p) => (
-                  <option key={p} value={p}>{p.charAt(0) + p.slice(1).toLowerCase()}</option>
-                ))}
-              </Select>
+                {/* Workflow Transitions */}
+                <div className="pt-2 border-t border-slate-100 space-y-2">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1">Workflow Actions</label>
 
-              {updating && <p className="text-xs text-slate-400">Updating...</p>}
-            </div>
-          </Card>
+                  {canStart && (
+                    <Button
+                      fullWidth
+                      size="sm"
+                      leftIcon={<Play size={15} />}
+                      loading={workflowActionRunning}
+                      onClick={handleStartWork}
+                    >
+                      Start Work
+                    </Button>
+                  )}
+
+                  {canResolve && (
+                    <Button
+                      fullWidth
+                      size="sm"
+                      leftIcon={<CheckCircle size={15} />}
+                      loading={workflowActionRunning}
+                      onClick={handleResolveTicket}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      Resolve Ticket
+                    </Button>
+                  )}
+
+                  {canClose && (
+                    <Button
+                      fullWidth
+                      size="sm"
+                      leftIcon={<Lock size={15} />}
+                      loading={workflowActionRunning}
+                      onClick={handleCloseTicket}
+                      className="bg-slate-900 hover:bg-black text-white"
+                    >
+                      Close Ticket
+                    </Button>
+                  )}
+
+                  {!canStart && !canResolve && !canClose && (
+                    <p className="text-xs text-slate-400 italic">No workflow transitions available in this state.</p>
+                  )}
+                </div>
+
+                {/* ADMIN Assignment Controls */}
+                {isAdmin && (
+                  <div className="pt-3 border-t border-slate-100 space-y-2">
+                    <label className="block text-xs font-semibold text-slate-600 mb-1">Assignment</label>
+                    <Button
+                      fullWidth
+                      size="sm"
+                      variant="outline"
+                      leftIcon={<UserPlus size={15} />}
+                      onClick={() => setAssignModalOpen(true)}
+                    >
+                      {ticket.assignedAgent ? 'Reassign Agent' : 'Assign Agent'}
+                    </Button>
+
+                    {ticket.assignedAgent && (
+                      <Button
+                        fullWidth
+                        size="sm"
+                        variant="outline"
+                        leftIcon={<UserMinus size={15} />}
+                        loading={assigning}
+                        onClick={handleUnassignTicket}
+                        className="text-red-700 border-red-200 hover:bg-red-50"
+                      >
+                        Unassign Ticket
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
         </div>
       </div>
+
+      {/* Admin Assign Modal */}
+      {isAdmin && (
+        <Modal
+          open={assignModalOpen}
+          onClose={() => setAssignModalOpen(false)}
+          title={ticket.assignedAgent ? 'Reassign Ticket' : 'Assign Ticket'}
+          size="sm"
+        >
+          <div className="space-y-4">
+            <p className="text-xs text-slate-500">
+              Enter the UUID of the active SUPPORT_AGENT to assign this ticket to:
+            </p>
+            <Input
+              name="agentId"
+              label="Agent UUID"
+              placeholder="e.g. 123e4567-e89b-12d3-a456-426614174000"
+              value={targetAgentId}
+              onChange={(e) => setTargetAgentId(e.target.value)}
+              disabled={assigning}
+            />
+            {assignError && <div className="p-3 bg-red-50 text-xs text-red-700 rounded-lg">{assignError}</div>}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setAssignModalOpen(false)} disabled={assigning}>
+                Cancel
+              </Button>
+              <Button loading={assigning} onClick={handleAssignTicket} disabled={!targetAgentId.trim()}>
+                Confirm Assignment
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </AppLayout>
   );
 }

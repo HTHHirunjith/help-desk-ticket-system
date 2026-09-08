@@ -3,6 +3,7 @@ package com.hansana.helpdesk.comment.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.hansana.helpdesk.audit.dto.AuditResponse;
 import com.hansana.helpdesk.audit.entity.AuditAction;
+import com.hansana.helpdesk.audit.entity.TicketAudit;
 import com.hansana.helpdesk.audit.repository.TicketAuditRepository;
 import com.hansana.helpdesk.auth.security.JwtAccessDeniedHandler;
 import com.hansana.helpdesk.auth.security.JwtAuthenticationEntryPoint;
@@ -14,6 +15,7 @@ import com.hansana.helpdesk.common.exception.GlobalExceptionHandler;
 import com.hansana.helpdesk.common.exception.ResourceNotFoundException;
 import com.hansana.helpdesk.config.SecurityConfig;
 import com.hansana.helpdesk.ticket.repository.TicketRepository;
+import com.hansana.helpdesk.user.entity.User;
 import com.hansana.helpdesk.user.entity.UserRole;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -235,13 +237,25 @@ class CommentControllerSecurityTest {
         @Test
         @WithMockUser(roles = "ADMIN")
         void adminCanAccessAuditHistory() throws Exception {
-            when(ticketRepository.findById(ticketId)).thenReturn(
-                    Optional.of(new com.hansana.helpdesk.ticket.entity.Ticket()));
+            com.hansana.helpdesk.ticket.entity.Ticket ticket = new com.hansana.helpdesk.ticket.entity.Ticket();
+            User actor = new User();
+            actor.setFirstName("Admin");
+            actor.setLastName("User");
+            actor.setEmail("admin@example.com");
+            actor.setRole(UserRole.ADMIN);
+
+            TicketAudit audit = new TicketAudit(ticket, actor, AuditAction.TICKET_CREATED, "{}");
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
             when(ticketAuditRepository.findByTicketIdOrderByCreatedAtDesc(ticketId))
-                    .thenReturn(List.of());
+                    .thenReturn(List.of(audit));
 
             mockMvc.perform(get("/api/v1/tickets/" + ticketId + "/audit"))
-                    .andExpect(status().isOk());
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$[0].action").value("TICKET_CREATED"))
+                    .andExpect(jsonPath("$[0].actor.name").value("Admin User"))
+                    .andExpect(jsonPath("$[0].actor.email").value("admin@example.com"))
+                    .andExpect(jsonPath("$[0].actor.role").value("ADMIN"));
         }
 
         @Test

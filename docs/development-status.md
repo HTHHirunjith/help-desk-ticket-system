@@ -1,8 +1,8 @@
 # Help Desk Ticket System — Development Status
 
-**Document version:** 1.4
-**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete; Phase 3B (Core Ticket Management) — complete; Phase 3C (Assignment + Workflow) — complete; Phase 3D (Comments + Audit API) — complete
-**Next phase:** Phase 3E (Frontend Integration) — not started
+**Document version:** 1.5
+**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete; Phase 3B (Core Ticket Management) — complete; Phase 3C (Assignment + Workflow) — complete; Phase 3D (Comments + Audit API) — complete; Phase 3E (Frontend Integration) — complete
+**Next phase:** Phase 4 (Administrative Operations & Dashboards) — not started
 
 ---
 
@@ -295,12 +295,33 @@ Phase 3D implemented the comment and audit history REST endpoints, server-derive
   - `AuditResponse`: Exposes `id`, `action`, `actor` (`ActorRef(id, name, email, role)`), `details`, `createdAt`. Never exposes passwords or sensitive credentials.
 - **Tests**: 37 comprehensive unit, controller security, and service business-rule tests (`CommentServiceTest`, `CommentControllerSecurityTest`). Total 198 tests, all passing.
 
-### 6.5 Not Yet Implemented (Phase 3E+)
+### 6.5 Phase 3E: Frontend Integration (Complete)
+
+Phase 3E connected the React frontend application to the real backend APIs, replacing mock services with real REST API endpoints:
+- **API Client**: Implemented `ticketApi`, `categoryApi`, `commentApi`, and `auditApi` in `frontend/src/api/tickets.ts` using the existing Axios client and JWT bearer token injection (`helpdesk_token`).
+- **Ticket Management**:
+  - `MyTicketsPage`, `AssignedTicketsPage`, and `AdminTicketsPage` consume `GET /api/v1/tickets` with backend pagination, status/priority/category filters, and `updatedAt DESC` ordering.
+  - `CreateTicketPage` is restricted to `USER`, validates required priority and title/description lengths, and dynamically loads active categories via `GET /api/v1/categories?active=true`.
+  - `TicketDetailPage` and `TicketWorkspacePage` retrieve full ticket details from `GET /api/v1/tickets/{ticketId}` and display human-facing ticket numbers (`#<num>`).
+  - Open ticket editing is enabled for ticket requesters via `PATCH /api/v1/tickets/{ticketId}`.
+  - Priority changes are integrated via `PATCH /api/v1/tickets/{ticketId}/priority` (restricted to assigned agents and admins).
+- **Workflow & Assignment**:
+  - Start Work (`POST /api/v1/tickets/{ticketId}/start`) and Resolve (`POST /api/v1/tickets/{ticketId}/resolve`) are wired for assigned support agents.
+  - Confirm Resolution (`POST /api/v1/tickets/{ticketId}/confirm-resolution`) and Reject Resolution (`POST /api/v1/tickets/{ticketId}/reject-resolution`) are wired for ticket requesters with distinct UI banners for reopened tickets.
+  - Close Ticket (`POST /api/v1/tickets/{ticketId}/close`) is wired for admins on confirmed resolved tickets.
+  - Admin assignment and reassignment (`PUT /api/v1/tickets/{ticketId}/assignment`) and unassignment (`DELETE /api/v1/tickets/{ticketId}/assignment`) are wired exclusively for administrators. No support-agent self-claim exists.
+- **Comments & Audit Timeline**:
+  - `GET /api/v1/tickets/{ticketId}/comments` and `POST /api/v1/tickets/{ticketId}/comments` are integrated with role-scoped access and server-derived author identities.
+  - `GET /api/v1/tickets/{ticketId}/audit` is integrated and displayed exclusively for administrators on the ticket workspace page.
+- **Dashboards**:
+  - `UserDashboard`, `AgentDashboard`, and `AdminDashboard` retrieve real tickets and calculate live metrics from real ticket responses.
+
+### 6.6 Not Yet Implemented (Phase 4+)
 
 The following features are designed and specified in the API contract and architecture documents but have **NOT** been implemented:
 
-- **Phase 3E**: Frontend ticket/category/workflow/comments/audit integration, replacing mock services with real API calls
-- **Future phases**: Category management write endpoints, dashboard statistics, user management (activation/deactivation, role management by admin), agent management views
+- **Phase 4**: User administration endpoints (`GET/POST /api/v1/users`, activation/deactivation), Category administration write endpoints (`POST/PATCH /api/v1/categories`, activate/deactivate), and dedicated server-calculated dashboard statistics endpoints (`/api/v1/dashboard/*`).
+- **Future phases**: Advanced reporting, email notifications, file attachments.
 
 ---
 

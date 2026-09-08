@@ -60,6 +60,7 @@ public class SecurityConfig {
         http.authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/health").permitAll()
                 .requestMatchers("/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                .requestMatchers("/error").permitAll()
                 .requestMatchers("/api/v1/auth/me").authenticated()
                 .requestMatchers("/api/v1/test/admin").hasRole("ADMIN")
                 .requestMatchers("/api/v1/test/agent").hasAnyRole("SUPPORT_AGENT", "ADMIN")
