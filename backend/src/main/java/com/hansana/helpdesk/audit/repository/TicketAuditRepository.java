@@ -11,6 +11,8 @@ public interface TicketAuditRepository extends JpaRepository<TicketAudit, UUID> 
 
     List<TicketAudit> findByTicketIdOrderByCreatedAtAsc(UUID ticketId);
 
+    List<TicketAudit> findByTicketIdOrderByCreatedAtDesc(UUID ticketId);
+
     List<TicketAudit> findByActorIdOrderByCreatedAtDesc(UUID actorId);
 
     List<TicketAudit> findByActionOrderByCreatedAtDesc(AuditAction action);

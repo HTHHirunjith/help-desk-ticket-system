@@ -75,6 +75,9 @@ public class SecurityConfig {
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/tickets/*/close").hasRole("ADMIN")
                 .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/v1/tickets/*/priority").hasAnyRole("SUPPORT_AGENT", "ADMIN")
                 .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/v1/tickets/*").hasRole("USER")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/tickets/*/audit").hasRole("ADMIN")
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/tickets/*/comments").authenticated()
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/tickets/*/comments").authenticated()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/tickets/**").authenticated()
                 .anyRequest().authenticated()
         );

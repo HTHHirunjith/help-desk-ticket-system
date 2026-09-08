@@ -1,8 +1,8 @@
 # Help Desk Ticket System — Development Status
 
-**Document version:** 1.3
-**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete; Phase 3B (Core Ticket Management) — complete; Phase 3C (Assignment + Workflow) — complete
-**Next phase:** Phase 3D (Comments + Audit API) — not started
+**Document version:** 1.4
+**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete; Phase 3B (Core Ticket Management) — complete; Phase 3C (Assignment + Workflow) — complete; Phase 3D (Comments + Audit API) — complete
+**Next phase:** Phase 3E (Frontend Integration) — not started
 
 ---
 
@@ -281,12 +281,25 @@ Phase 3C implemented ticket assignment/reassignment/unassignment, lifecycle work
   - Structured error handling: `InvalidTicketStateException` (409 Conflict) for invalid lifecycle transitions and redundant assignment/unassignment operations.
 - **Tests**: Comprehensive unit, controller security, and service business-rule tests (161 tests total, all passing).
 
-### 6.4 Not Yet Implemented (Phase 3D+)
+### 6.4 Phase 3D: Comments + Audit API (Complete)
+
+Phase 3D implemented the comment and audit history REST endpoints, server-derived author/actor tracking, and transactional audit event persistence:
+- **Comment Endpoints**:
+  - `GET /api/v1/tickets/{ticketId}/comments`: Lists comments on a ticket. Access is strictly gated by ticket visibility rules (USER sees comments on owned tickets; SUPPORT_AGENT sees comments on assigned tickets; ADMIN sees comments on any ticket; inaccessible or nonexistent tickets return 404). Ordered deterministically by `createdAt ASC`.
+  - `POST /api/v1/tickets/{ticketId}/comments`: Adds a comment to a ticket. Subject to the exact same ticket visibility rules. Author is strictly derived from the authenticated security principal (`UserPrincipal`), client cannot choose author. Persists `COMMENT_ADDED` audit event and comment record within the same transaction. Returns `201 Created` with `CommentResponse`.
+- **Audit History Endpoint (ADMIN-only)**:
+  - `GET /api/v1/tickets/{ticketId}/audit`: Retrieves full audit timeline for a ticket. Restricted strictly to `ADMIN` (enforced at both SecurityConfig and controller layers; non-ADMIN authenticated requests receive `403 Forbidden`; nonexistent tickets return `404 Not Found`). Ordered deterministically by `createdAt DESC`.
+- **DTOs and Information Sanitization**:
+  - `CreateCommentRequest`: Validates `@NotBlank` and `@Size(max = 5000)`.
+  - `CommentResponse`: Exposes `id`, `body`, `author` (`AuthorRef(id, name, role)`), `createdAt`, `updatedAt`. Never exposes passwords or sensitive credentials.
+  - `AuditResponse`: Exposes `id`, `action`, `actor` (`ActorRef(id, name, email, role)`), `details`, `createdAt`. Never exposes passwords or sensitive credentials.
+- **Tests**: 37 comprehensive unit, controller security, and service business-rule tests (`CommentServiceTest`, `CommentControllerSecurityTest`). Total 198 tests, all passing.
+
+### 6.5 Not Yet Implemented (Phase 3E+)
 
 The following features are designed and specified in the API contract and architecture documents but have **NOT** been implemented:
 
-- **Phase 3D**: Comment REST endpoints (`GET /api/v1/tickets/{id}/comments`, `POST /api/v1/tickets/{id}/comments`), audit REST endpoints (`GET /api/v1/tickets/{id}/audit`)
-- **Phase 3E**: Frontend ticket/category/workflow integration, replacing mock services with real API calls
+- **Phase 3E**: Frontend ticket/category/workflow/comments/audit integration, replacing mock services with real API calls
 - **Future phases**: Category management write endpoints, dashboard statistics, user management (activation/deactivation, role management by admin), agent management views
 
 ---
