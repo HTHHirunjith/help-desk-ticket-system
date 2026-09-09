@@ -49,4 +49,68 @@ public class CategoryService {
     public Optional<Category> findByName(String name) {
         return categoryRepository.findByNameIgnoreCase(name);
     }
+
+    @Transactional
+    public com.hansana.helpdesk.category.dto.CategoryResponse createCategory(com.hansana.helpdesk.category.dto.CreateCategoryRequest request) {
+        String normalizedName = request.name() != null ? request.name().trim() : "";
+        if (normalizedName.isEmpty()) {
+            throw new IllegalArgumentException("Name is required");
+        }
+
+        if (categoryRepository.existsByNameIgnoreCase(normalizedName)) {
+            throw new com.hansana.helpdesk.common.exception.CategoryAlreadyExistsException("Category with name '" + normalizedName + "' already exists");
+        }
+
+        String description = request.description() != null ? request.description().trim() : "";
+        Category category = new Category(normalizedName, description);
+        Category saved = categoryRepository.save(category);
+        return com.hansana.helpdesk.category.dto.CategoryResponse.from(saved);
+    }
+
+    @Transactional
+    public com.hansana.helpdesk.category.dto.CategoryResponse updateCategory(UUID id, com.hansana.helpdesk.category.dto.UpdateCategoryRequest request) {
+        if (request.name() == null && request.description() == null) {
+            throw new IllegalArgumentException("At least one field (name or description) must be provided for update");
+        }
+
+        Category category = getById(id);
+
+        if (request.name() != null) {
+            String normalizedName = request.name().trim();
+            if (normalizedName.isEmpty()) {
+                throw new IllegalArgumentException("Category name cannot be blank");
+            }
+            if (!normalizedName.equalsIgnoreCase(category.getName())) {
+                if (categoryRepository.existsByNameIgnoreCase(normalizedName)) {
+                    throw new com.hansana.helpdesk.common.exception.CategoryAlreadyExistsException("Category with name '" + normalizedName + "' already exists");
+                }
+                category.setName(normalizedName);
+            } else {
+                category.setName(normalizedName);
+            }
+        }
+
+        if (request.description() != null) {
+            category.setDescription(request.description().trim());
+        }
+
+        Category saved = categoryRepository.save(category);
+        return com.hansana.helpdesk.category.dto.CategoryResponse.from(saved);
+    }
+
+    @Transactional
+    public com.hansana.helpdesk.category.dto.CategoryResponse activateCategory(UUID id) {
+        Category category = getById(id);
+        category.setActive(true);
+        Category saved = categoryRepository.save(category);
+        return com.hansana.helpdesk.category.dto.CategoryResponse.from(saved);
+    }
+
+    @Transactional
+    public com.hansana.helpdesk.category.dto.CategoryResponse deactivateCategory(UUID id) {
+        Category category = getById(id);
+        category.setActive(false);
+        Category saved = categoryRepository.save(category);
+        return com.hansana.helpdesk.category.dto.CategoryResponse.from(saved);
+    }
 }

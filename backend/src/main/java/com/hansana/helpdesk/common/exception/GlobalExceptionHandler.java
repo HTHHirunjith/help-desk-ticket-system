@@ -26,6 +26,16 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request.getRequestURI());
     }
 
+    @ExceptionHandler(CategoryAlreadyExistsException.class)
+    public ResponseEntity<Map<String, Object>> handleCategoryExists(CategoryAlreadyExistsException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, Object>> handleDataIntegrityViolation(org.springframework.dao.DataIntegrityViolationException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "Conflict", "A duplicate or conflicting resource already exists", request.getRequestURI());
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request.getRequestURI());

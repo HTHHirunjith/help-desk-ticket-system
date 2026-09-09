@@ -1,6 +1,8 @@
 import { http } from './http';
 import type {
   Category,
+  CreateCategoryPayload,
+  UpdateCategoryPayload,
   TicketSummary,
   TicketDetail,
   PagedResponse,
@@ -125,6 +127,38 @@ export const categoryApi = {
   async getCategories(active?: boolean): Promise<Category[]> {
     const params = active !== undefined ? { active } : undefined;
     const response = await http.get<Category[]>('/api/v1/categories', { params });
+    return response.data;
+  },
+
+  /**
+   * Create category. ADMIN only.
+   */
+  async createCategory(payload: CreateCategoryPayload): Promise<Category> {
+    const response = await http.post<Category>('/api/v1/categories', payload);
+    return response.data;
+  },
+
+  /**
+   * Update category. ADMIN only.
+   */
+  async updateCategory(id: string, payload: UpdateCategoryPayload): Promise<Category> {
+    const response = await http.patch<Category>(`/api/v1/categories/${id}`, payload);
+    return response.data;
+  },
+
+  /**
+   * Activate category. ADMIN only.
+   */
+  async activateCategory(id: string): Promise<Category> {
+    const response = await http.post<Category>(`/api/v1/categories/${id}/activate`);
+    return response.data;
+  },
+
+  /**
+   * Deactivate category. ADMIN only.
+   */
+  async deactivateCategory(id: string): Promise<Category> {
+    const response = await http.post<Category>(`/api/v1/categories/${id}/deactivate`);
     return response.data;
   },
 };

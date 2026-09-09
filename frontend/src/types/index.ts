@@ -167,6 +167,16 @@ export interface TicketFilterParams {
   categoryId?: string;
 }
 
+export interface CreateCategoryPayload {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateCategoryPayload {
+  name?: string;
+  description?: string;
+}
+
 // Retained for backward-compatibility with UI components
 export type Ticket = TicketSummary;
 export type TicketCategory = TicketCategoryName;

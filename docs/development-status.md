@@ -1,8 +1,8 @@
 # Help Desk Ticket System — Development Status
 
-**Document version:** 1.5
-**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete; Phase 3B (Core Ticket Management) — complete; Phase 3C (Assignment + Workflow) — complete; Phase 3D (Comments + Audit API) — complete; Phase 3E (Frontend Integration) — complete
-**Next phase:** Phase 4 (Administrative Operations & Dashboards) — not started
+**Document version:** 1.6
+**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete; Phase 3B (Core Ticket Management) — complete; Phase 3C (Assignment + Workflow) — complete; Phase 3D (Comments + Audit API) — complete; Phase 3E (Frontend Integration) — complete; Phase 4A (Administrative Category Management) — complete
+**Next phase:** Phase 4B (Administrative User & Agent Management) — not started
 
 ---
 
@@ -316,11 +316,28 @@ Phase 3E connected the React frontend application to the real backend APIs, repl
 - **Dashboards**:
   - `UserDashboard`, `AgentDashboard`, and `AdminDashboard` retrieve real tickets and calculate live metrics from real ticket responses.
 
-### 6.6 Not Yet Implemented (Phase 4+)
+### 6.6 Phase 4A Implementation Summary (Administrative Category Management)
+
+Phase 4A implemented the category mutation and administration capabilities across backend and frontend:
+- **Backend APIs**:
+  - `POST /api/v1/categories`: Create category (ADMIN only; normalized trimmed name, uniqueness check, active by default).
+  - `PATCH /api/v1/categories/{categoryId}`: Update category name/description (ADMIN only; validation, conflict check).
+  - `POST /api/v1/categories/{categoryId}/activate`: Activate category (ADMIN only).
+  - `POST /api/v1/categories/{categoryId}/deactivate`: Deactivate category (ADMIN only; soft deactivation, existing tickets preserved).
+- **Error Handling & Constraints**:
+  - PostgreSQL unique index on `LOWER(name)` (`uq_categories_name_lower`).
+  - `CategoryAlreadyExistsException` mapped to `409 Conflict`.
+- **Frontend Integration**:
+  - Fully interactive category management in `AdminCategoriesPage.tsx` with creation/edit modals, active/inactive badges, deactivation confirmation dialogs, and validation/conflict error feedback.
+- **Testing**:
+  - Unit, service, and security/controller slice tests in `CategoryServiceTest` and `CategoryControllerSecurityTest`.
+
+### 6.7 Not Yet Implemented (Phase 4B+)
 
 The following features are designed and specified in the API contract and architecture documents but have **NOT** been implemented:
 
-- **Phase 4**: User administration endpoints (`GET/POST /api/v1/users`, activation/deactivation), Category administration write endpoints (`POST/PATCH /api/v1/categories`, activate/deactivate), and dedicated server-calculated dashboard statistics endpoints (`/api/v1/dashboard/*`).
+- **Phase 4B**: User administration endpoints (`GET/POST /api/v1/users`, `PATCH /api/v1/users/{id}`, activation/deactivation).
+- **Phase 4C**: Dedicated server-calculated dashboard statistics endpoints (`/api/v1/dashboard/*`) and ticket full-text search.
 - **Future phases**: Advanced reporting, email notifications, file attachments.
 
 ---
