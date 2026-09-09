@@ -20,6 +20,7 @@ public record TicketDetailResponse(
         TicketSummaryResponse.UserRef assignedAgent,
         Instant resolutionConfirmedAt,
         TicketSummaryResponse.UserRef resolutionConfirmedBy,
+        Instant reopenedAt,
         Instant createdAt,
         Instant updatedAt
 ) {
@@ -36,9 +37,11 @@ public record TicketDetailResponse(
                 TicketSummaryResponse.UserRef.from(ticket.getAssignedAgent()),
                 ticket.getResolutionConfirmedAt(),
                 TicketSummaryResponse.UserRef.from(ticket.getResolutionConfirmedBy()),
+                ticket.getReopenedAt(),
                 ticket.getCreatedAt(),
                 ticket.getUpdatedAt()
         );
     }
 }
+
 

@@ -66,6 +66,7 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/test/agent").hasAnyRole("SUPPORT_AGENT", "ADMIN")
                 .requestMatchers("/api/v1/test/user").authenticated()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/categories").authenticated()
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/users/**").hasRole("ADMIN")
                 .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/tickets").hasRole("USER")
                 .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/v1/tickets/*/assignment").hasRole("ADMIN")
                 .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/v1/tickets/*/assignment").hasRole("ADMIN")

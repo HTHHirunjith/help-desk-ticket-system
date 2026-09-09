@@ -363,6 +363,7 @@ public class TicketService {
         ticket.setStatus(TicketStatus.OPEN);
         ticket.setResolutionConfirmedAt(null);
         ticket.setResolutionConfirmedBy(null);
+        ticket.setReopenedAt(Instant.now());
         ticket.setUpdatedAt(Instant.now());
         Ticket savedTicket = ticketRepository.save(ticket);
 

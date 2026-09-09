@@ -74,6 +74,9 @@ public class Ticket {
     @JoinColumn(name = "resolution_confirmed_by")
     private User resolutionConfirmedBy;
 
+    @Column(name = "reopened_at")
+    private Instant reopenedAt;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -200,6 +203,14 @@ public class Ticket {
 
     public void setResolutionConfirmedBy(User resolutionConfirmedBy) {
         this.resolutionConfirmedBy = resolutionConfirmedBy;
+    }
+
+    public Instant getReopenedAt() {
+        return reopenedAt;
+    }
+
+    public void setReopenedAt(Instant reopenedAt) {
+        this.reopenedAt = reopenedAt;
     }
 
     public Instant getCreatedAt() {

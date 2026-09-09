@@ -1,0 +1,31 @@
+package com.hansana.helpdesk.user.controller;
+
+import com.hansana.helpdesk.auth.dto.UserResponse;
+import com.hansana.helpdesk.user.entity.UserRole;
+import com.hansana.helpdesk.user.service.UserService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/v1/users")
+public class UserController {
+
+    private final UserService userService;
+
+    public UserController(UserService userService) {
+        this.userService = userService;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<UserResponse>> listUsers(
+            @RequestParam(name = "role", required = false) UserRole role,
+            @RequestParam(name = "active", required = false) Boolean active) {
+        List<UserResponse> users = userService.findUsers(role, active);
+        return ResponseEntity.ok(users);
+    }
+}

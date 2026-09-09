@@ -232,13 +232,13 @@ export function TicketDetailPage() {
       )}
 
       {/* Reopened Banner Notice */}
-      {ticket.status === 'OPEN' && ticket.assignedAgent && (
+      {ticket.reopenedAt != null && (
         <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900 flex items-center gap-2">
           <AlertCircle size={18} className="text-amber-600 shrink-0" />
           <div>
             <span className="font-semibold">Reopened Ticket: </span>
             <span>
-              This ticket was reopened and is assigned to {ticket.assignedAgent.name}. Work will resume shortly.
+              This ticket was reopened and is assigned to {ticket.assignedAgent?.name ?? 'a support agent'}. Work will resume shortly.
             </span>
           </div>
         </div>

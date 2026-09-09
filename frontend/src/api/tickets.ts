@@ -12,6 +12,8 @@ import type {
   CreateCommentPayload,
   AuditEntry,
   TicketFilterParams,
+  User,
+  UserRole,
 } from '@/types';
 
 export const ticketApi = {
@@ -158,3 +160,14 @@ export const auditApi = {
     return response.data;
   },
 };
+
+export const userApi = {
+  /**
+   * List users. Optional role and active status filters. ADMIN only.
+   */
+  async getUsers(params?: { role?: UserRole; active?: boolean }): Promise<User[]> {
+    const response = await http.get<User[]>('/api/v1/users', { params });
+    return response.data;
+  },
+};
+

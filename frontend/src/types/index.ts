@@ -78,6 +78,7 @@ export interface TicketDetail {
   assignedAgent: UserRef | null;
   resolutionConfirmedAt: string | null;
   resolutionConfirmedBy: UserRef | null;
+  reopenedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

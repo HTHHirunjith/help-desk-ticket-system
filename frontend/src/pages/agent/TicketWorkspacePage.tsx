@@ -1,9 +1,9 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
-import { ticketApi, commentApi, auditApi } from '@/api/tickets';
+import { ticketApi, commentApi, auditApi, userApi } from '@/api/tickets';
 import { extractErrorMessage } from '@/api/auth';
-import type { TicketDetail, TicketPriority, Comment, AuditEntry } from '@/types';
+import type { TicketDetail, TicketPriority, Comment, AuditEntry, User } from '@/types';
 import { AppLayout } from '@/components/layout/AppLayout';
 import {
   Card,
@@ -14,7 +14,6 @@ import {
   ErrorState,
   Select,
   Textarea,
-  Input,
   Modal,
 } from '@/components/ui';
 import { StatusBadge, PriorityBadge, CategoryBadge } from '@/components/ui/Badge';
@@ -68,9 +67,32 @@ export function TicketWorkspacePage() {
   const [targetAgentId, setTargetAgentId] = useState('');
   const [assigning, setAssigning] = useState(false);
   const [assignError, setAssignError] = useState<string | null>(null);
+  const [agents, setAgents] = useState<User[]>([]);
+  const [loadingAgents, setLoadingAgents] = useState(false);
+  const [loadAgentsError, setLoadAgentsError] = useState<string | null>(null);
 
   const isAdmin = user?.role === 'ADMIN';
   const isAgent = user?.role === 'SUPPORT_AGENT';
+
+  const fetchAgents = async () => {
+    setLoadingAgents(true);
+    setLoadAgentsError(null);
+    try {
+      const data = await userApi.getUsers({ role: 'SUPPORT_AGENT', active: true });
+      setAgents(data);
+    } catch (err) {
+      setLoadAgentsError(extractErrorMessage(err, 'Failed to load support agents.'));
+    } finally {
+      setLoadingAgents(false);
+    }
+  };
+
+  const handleOpenAssignModal = () => {
+    setAssignModalOpen(true);
+    setAssignError(null);
+    setTargetAgentId('');
+    fetchAgents();
+  };
 
   const fetchTicketData = async (ticketId: string) => {
     try {
@@ -274,7 +296,7 @@ export function TicketWorkspacePage() {
       )}
 
       {/* Reopened Banner Notice */}
-      {ticket.status === 'OPEN' && ticket.assignedAgent && (
+      {ticket.reopenedAt != null && (
         <div className="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-900 flex items-center gap-2">
           <AlertCircle size={18} className="text-amber-600 shrink-0" />
           <div>
@@ -514,7 +536,7 @@ export function TicketWorkspacePage() {
                       size="sm"
                       variant="outline"
                       leftIcon={<UserPlus size={15} />}
-                      onClick={() => setAssignModalOpen(true)}
+                      onClick={handleOpenAssignModal}
                     >
                       {ticket.assignedAgent ? 'Reassign Agent' : 'Assign Agent'}
                     </Button>
@@ -550,23 +572,59 @@ export function TicketWorkspacePage() {
         >
           <div className="space-y-4">
             <p className="text-xs text-slate-500">
-              Enter the UUID of the active SUPPORT_AGENT to assign this ticket to:
+              Select an active Support Agent to {ticket.assignedAgent ? 'reassign' : 'assign'} this ticket to:
             </p>
-            <Input
-              name="agentId"
-              label="Agent UUID"
-              placeholder="e.g. 123e4567-e89b-12d3-a456-426614174000"
-              value={targetAgentId}
-              onChange={(e) => setTargetAgentId(e.target.value)}
-              disabled={assigning}
-            />
+
+            {loadingAgents ? (
+              <InlineLoader message="Loading support agents..." />
+            ) : loadAgentsError ? (
+              <div className="space-y-2">
+                <div className="p-3 bg-red-50 text-xs text-red-700 rounded-lg">{loadAgentsError}</div>
+                <Button size="sm" variant="outline" onClick={fetchAgents}>
+                  Retry
+                </Button>
+              </div>
+            ) : agents.length === 0 ? (
+              <div className="p-3 bg-amber-50 border border-amber-200 text-xs text-amber-800 rounded-lg">
+                No active support agents available for assignment.
+              </div>
+            ) : (
+              <Select
+                name="agentId"
+                label="Support Agent"
+                value={targetAgentId}
+                onChange={(e) => {
+                  setTargetAgentId(e.target.value);
+                  setAssignError(null);
+                }}
+                disabled={assigning}
+              >
+                <option value="">Select Support Agent</option>
+                {agents.map((agent) => (
+                  <option
+                    key={agent.id}
+                    value={agent.id}
+                    disabled={ticket.assignedAgent?.id === agent.id}
+                  >
+                    {agent.firstName} {agent.lastName} ({agent.email})
+                    {ticket.assignedAgent?.id === agent.id ? ' — Currently Assigned' : ''}
+                  </option>
+                ))}
+              </Select>
+            )}
+
             {assignError && <div className="p-3 bg-red-50 text-xs text-red-700 rounded-lg">{assignError}</div>}
+
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={() => setAssignModalOpen(false)} disabled={assigning}>
                 Cancel
               </Button>
-              <Button loading={assigning} onClick={handleAssignTicket} disabled={!targetAgentId.trim()}>
-                Confirm Assignment
+              <Button
+                loading={assigning}
+                onClick={handleAssignTicket}
+                disabled={!targetAgentId.trim() || loadingAgents || agents.length === 0}
+              >
+                {ticket.assignedAgent ? 'Confirm Reassignment' : 'Confirm Assignment'}
               </Button>
             </div>
           </div>
