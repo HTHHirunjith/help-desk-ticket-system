@@ -1,5 +1,5 @@
 import { http } from './http';
-import type { LoginCredentials, AuthResponse, RegisterPayload, User } from '@/types';
+import type { LoginCredentials, AuthResponse, RegisterPayload, User, ChangePasswordPayload } from '@/types';
 import axios from 'axios';
 
 export function extractErrorMessage(error: unknown, fallback = 'An unexpected error occurred.'): string {
@@ -56,5 +56,10 @@ export async function registerApi(payload: RegisterPayload): Promise<User> {
 
 export async function getMeApi(): Promise<User> {
   const response = await http.get<User>('/api/v1/auth/me');
+  return response.data;
+}
+
+export async function changePasswordApi(payload: ChangePasswordPayload): Promise<{ message: string }> {
+  const response = await http.post<{ message: string }>('/api/v1/auth/change-password', payload);
   return response.data;
 }

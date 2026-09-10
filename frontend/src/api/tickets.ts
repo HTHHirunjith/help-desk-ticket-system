@@ -16,6 +16,8 @@ import type {
   TicketFilterParams,
   User,
   UserRole,
+  CreateUserPayload,
+  UpdateUserPayload,
 } from '@/types';
 
 export const ticketApi = {
@@ -203,5 +205,45 @@ export const userApi = {
     const response = await http.get<User[]>('/api/v1/users', { params });
     return response.data;
   },
-};
 
+  /**
+   * Get user by ID. ADMIN only.
+   */
+  async getUserById(userId: string): Promise<User> {
+    const response = await http.get<User>(`/api/v1/users/${userId}`);
+    return response.data;
+  },
+
+  /**
+   * Create privileged account (SUPPORT_AGENT or ADMIN). ADMIN only.
+   * Generates temporary password and sends credentials email.
+   */
+  async createUser(payload: CreateUserPayload): Promise<User> {
+    const response = await http.post<User>('/api/v1/users', payload);
+    return response.data;
+  },
+
+  /**
+   * Update non-security profile fields (firstName, lastName, email). ADMIN only.
+   */
+  async updateUser(userId: string, payload: UpdateUserPayload): Promise<User> {
+    const response = await http.patch<User>(`/api/v1/users/${userId}`, payload);
+    return response.data;
+  },
+
+  /**
+   * Activate user account. ADMIN only.
+   */
+  async activateUser(userId: string): Promise<User> {
+    const response = await http.post<User>(`/api/v1/users/${userId}/activate`);
+    return response.data;
+  },
+
+  /**
+   * Deactivate user account. ADMIN only.
+   */
+  async deactivateUser(userId: string): Promise<User> {
+    const response = await http.post<User>(`/api/v1/users/${userId}/deactivate`);
+    return response.data;
+  },
+};

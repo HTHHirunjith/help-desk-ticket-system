@@ -3,6 +3,7 @@ package com.hansana.helpdesk.auth.dto;
 import com.hansana.helpdesk.user.entity.User;
 import com.hansana.helpdesk.user.entity.UserRole;
 
+import java.time.Instant;
 import java.util.UUID;
 
 public class UserResponse {
@@ -12,16 +13,29 @@ public class UserResponse {
     private String lastName;
     private String email;
     private UserRole role;
+    private boolean active;
+    private boolean mustChangePassword;
+    private Instant createdAt;
+    private Instant updatedAt;
 
     public UserResponse() {
     }
 
     public UserResponse(UUID id, String firstName, String lastName, String email, UserRole role) {
+        this(id, firstName, lastName, email, role, true, false, null, null);
+    }
+
+    public UserResponse(UUID id, String firstName, String lastName, String email, UserRole role,
+                        boolean active, boolean mustChangePassword, Instant createdAt, Instant updatedAt) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;
         this.email = email;
         this.role = role;
+        this.active = active;
+        this.mustChangePassword = mustChangePassword;
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
     }
 
     public static UserResponse fromUser(User user) {
@@ -30,7 +44,11 @@ public class UserResponse {
                 user.getFirstName(),
                 user.getLastName(),
                 user.getEmail(),
-                user.getRole()
+                user.getRole(),
+                user.isActive(),
+                user.isMustChangePassword(),
+                user.getCreatedAt(),
+                user.getUpdatedAt()
         );
     }
 
@@ -72,5 +90,37 @@ public class UserResponse {
 
     public void setRole(UserRole role) {
         this.role = role;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
+    }
+
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
+    }
+
+    public void setMustChangePassword(boolean mustChangePassword) {
+        this.mustChangePassword = mustChangePassword;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Instant getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Instant updatedAt) {
+        this.updatedAt = updatedAt;
     }
 }

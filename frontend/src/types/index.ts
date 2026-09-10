@@ -19,8 +19,10 @@ export interface User {
   lastName: string;
   role: UserRole;
   active?: boolean;
+  mustChangePassword?: boolean;
   avatarUrl?: string | null;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface UserRef {
@@ -33,6 +35,24 @@ export interface RegisterPayload {
   lastName: string;
   email: string;
   password: string;
+}
+
+export interface CreateUserPayload {
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: 'SUPPORT_AGENT' | 'ADMIN';
+}
+
+export interface UpdateUserPayload {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+}
+
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
 }
 
 export interface LoginCredentials {

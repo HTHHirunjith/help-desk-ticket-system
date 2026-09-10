@@ -1,5 +1,6 @@
 package com.hansana.helpdesk.auth.service;
 
+import com.hansana.helpdesk.auth.dto.ChangePasswordRequest;
 import com.hansana.helpdesk.auth.dto.LoginRequest;
 import com.hansana.helpdesk.auth.dto.LoginResponse;
 import com.hansana.helpdesk.auth.dto.RegisterRequest;
@@ -44,6 +45,7 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(UserRole.USER);
         user.setActive(true);
+        user.setMustChangePassword(false);
 
         User savedUser = userRepository.save(user);
         return UserResponse.fromUser(savedUser);
@@ -76,5 +78,19 @@ public class AuthService {
         User user = userRepository.findByEmail(email.trim())
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
         return UserResponse.fromUser(user);
+    }
+
+    @Transactional
+    public void changePassword(String email, ChangePasswordRequest request) {
+        User user = userRepository.findByEmail(email.trim())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
+            throw new BadCredentialsException("Current password is incorrect");
+        }
+
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setMustChangePassword(false);
+        userRepository.save(user);
     }
 }

@@ -10,10 +10,11 @@ interface AuthContextValue {
   token: string | null;
   isLoading: boolean;
   error: string | null;
-  login: (credentials: LoginCredentials) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<User>;
   register: (payload: RegisterPayload) => Promise<User>;
   logout: () => void;
   clearError: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -107,6 +108,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(TOKEN_STORAGE_KEY, response.token);
       setToken(response.token);
       setUser(response.user);
+      return response.user;
     } catch (err) {
       const message = extractErrorMessage(err, 'Invalid email or password.');
       setError(message);
@@ -133,6 +135,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearError = useCallback(() => setError(null), []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const currentUser = await getMeApi();
+      setUser(currentUser);
+    } catch {
+      // If refresh fails, leave the existing user state intact
+    }
+  }, []);
+
   const value: AuthContextValue = {
     user,
     token,
@@ -142,6 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register,
     logout,
     clearError,
+    refreshUser,
   };
 
   if (isInitializing) {

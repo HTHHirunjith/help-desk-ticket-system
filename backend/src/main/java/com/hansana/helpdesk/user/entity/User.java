@@ -42,6 +42,9 @@ public class User {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(name = "must_change_password", nullable = false)
+    private boolean mustChangePassword = false;
+
     @Column(name = "avatar_url", length = 2048)
     private String avatarUrl;
 
@@ -124,6 +127,14 @@ public class User {
 
     public void setActive(boolean active) {
         this.active = active;
+    }
+
+    public boolean isMustChangePassword() {
+        return mustChangePassword;
+    }
+
+    public void setMustChangePassword(boolean mustChangePassword) {
+        this.mustChangePassword = mustChangePassword;
     }
 
     public String getAvatarUrl() {

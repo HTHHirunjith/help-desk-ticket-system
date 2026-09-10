@@ -43,8 +43,13 @@ export function LoginPage() {
     clearError();
     if (!validate()) return;
     try {
-      await login({ email: email.trim(), password });
-      navigate(fromPath || '/dashboard', { replace: true });
+      const loggedInUser = await login({ email: email.trim(), password });
+      if (loggedInUser.mustChangePassword) {
+        // Force the user to set a permanent password before accessing the app
+        navigate('/change-password', { replace: true });
+      } else {
+        navigate(fromPath || '/dashboard', { replace: true });
+      }
     } catch {
       // error is set in context
     }

@@ -1,8 +1,8 @@
 # Help Desk Ticket System — Development Status
 
-**Document version:** 1.6
-**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete; Phase 3B (Core Ticket Management) — complete; Phase 3C (Assignment + Workflow) — complete; Phase 3D (Comments + Audit API) — complete; Phase 3E (Frontend Integration) — complete; Phase 4A (Administrative Category Management) — complete
-**Next phase:** Phase 4B (Administrative User & Agent Management) — not started
+**Document version:** 1.7
+**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete; Phase 3B (Core Ticket Management) — complete; Phase 3C (Assignment + Workflow) — complete; Phase 3D (Comments + Audit API) — complete; Phase 3E (Frontend Integration) — complete; Phase 4A (Administrative Category Management) — complete; Phase 4B (Administrative User & Agent Management) — complete
+**Next phase:** Phase 4C (Search & Dashboard Analytics) — not started
 
 ---
 
@@ -332,13 +332,39 @@ Phase 4A implemented the category mutation and administration capabilities acros
 - **Testing**:
   - Unit, service, and security/controller slice tests in `CategoryServiceTest` and `CategoryControllerSecurityTest`.
 
-### 6.7 Not Yet Implemented (Phase 4B+)
+### 6.7 Phase 4B Implementation Summary (Administrative User & Agent Management)
+
+Phase 4B implemented public self-registration for `USER` roles, ADMIN-controlled privileged account provisioning (`SUPPORT_AGENT` / `ADMIN`), temporary-password generation and email delivery, profile updates, and activation/deactivation workflows:
+- **Database & Entities**:
+  - Flyway migration `V4__add_must_change_password_to_users.sql` added `must_change_password` boolean column to `users`.
+  - Updated `User` entity and `UserResponse` DTO with `mustChangePassword`, `active`, `createdAt`, `updatedAt`.
+- **Account Creation & Security**:
+  - Public registration (`POST /api/v1/auth/register`) strictly assigns role `USER`, encodes password via BCrypt, and sets `mustChangePassword = false`.
+  - Admin user creation (`POST /api/v1/users`) creates `SUPPORT_AGENT` or `ADMIN` accounts. Backend generates a cryptographically secure temporary password using `SecureRandom`, BCrypt-hashes it before database persistence, sets `mustChangePassword = true`, and delivers credentials to recipient's email via `EmailService` (`JavaMailSender`).
+  - Passwords and BCrypt hashes are never logged, never returned in API responses, and never stored in plaintext.
+  - Password change endpoint (`POST /api/v1/auth/change-password`) allows authenticated users to replace temporary/current passwords and clears `mustChangePassword = false`.
+- **User Lifecycle & Safety Rules**:
+  - `PATCH /api/v1/users/{userId}`: Updates permitted profile fields (`firstName`, `lastName`, `email`). Role and active status remain immutable.
+  - `POST /api/v1/users/{userId}/activate`: Reactivates user account.
+  - `POST /api/v1/users/{userId}/deactivate`: Deactivates account (soft deactivation). Deactivated users cannot authenticate or obtain JWTs.
+  - Backend Admin Safety Rules:
+    1. Admin cannot deactivate their own account (`SelfDeactivationException` -> `400 Bad Request`).
+    2. Cannot deactivate the last active ADMIN (`LastActiveAdminException` -> `409 Conflict`).
+- **Secret Management**:
+  - SMTP mail credentials use environment variables (`MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`) loaded from local `.env` (strictly Git-ignored).
+- **Frontend Integration**:
+  - Updated `AdminUsersPage.tsx` with live user list, role/status filtering, create privileged account modal with email provisioning notice, edit profile modal, and activate/deactivate confirmation dialogs.
+  - Updated `AdminAgentsPage.tsx` with live support agents view, agent creation modal, edit profile modal, and active status toggles.
+- **Testing**:
+  - Unit tests for `UserServiceTest`, `AuthServiceTest`, `EmailServiceTest`, `TemporaryPasswordGeneratorTest`.
+  - Controller security slice tests in `UserControllerSecurityTest` and `AuthControllerSecurityTest` covering authorization, HTTP statuses, and validation.
+
+### 6.8 Not Yet Implemented (Phase 4C+)
 
 The following features are designed and specified in the API contract and architecture documents but have **NOT** been implemented:
 
-- **Phase 4B**: User administration endpoints (`GET/POST /api/v1/users`, `PATCH /api/v1/users/{id}`, activation/deactivation).
 - **Phase 4C**: Dedicated server-calculated dashboard statistics endpoints (`/api/v1/dashboard/*`) and ticket full-text search.
-- **Future phases**: Advanced reporting, email notifications, file attachments.
+- **Future phases**: Advanced reporting, email notifications for ticket events, file attachments.
 
 ---
 

@@ -1,6 +1,7 @@
 package com.hansana.helpdesk.auth.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.hansana.helpdesk.auth.dto.ChangePasswordRequest;
 import com.hansana.helpdesk.auth.dto.LoginRequest;
 import com.hansana.helpdesk.auth.dto.LoginResponse;
 import com.hansana.helpdesk.auth.dto.RegisterRequest;
@@ -22,6 +23,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
@@ -30,6 +32,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -195,5 +198,39 @@ class AuthControllerSecurityTest {
                 .andExpect(jsonPath("$.status", is(401)))
                 .andExpect(jsonPath("$.error", is("Unauthorized")))
                 .andExpect(jsonPath("$.message", is("Authentication is required")));
+    }
+
+    @Test
+    void changePasswordFailsWith401WhenUnauthenticated() throws Exception {
+        ChangePasswordRequest request = new ChangePasswordRequest("OldPass123", "NewPass123");
+
+        mockMvc.perform(post("/api/v1/auth/change-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @WithMockUser(username = "alice@example.com", roles = "USER")
+    void changePasswordSucceedsWith200WhenAuthenticated() throws Exception {
+        ChangePasswordRequest request = new ChangePasswordRequest("OldPass123", "NewPass123");
+        doNothing().when(authService).changePassword(any(), any());
+
+        mockMvc.perform(post("/api/v1/auth/change-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message", is("Password changed successfully")));
+    }
+
+    @Test
+    @WithMockUser(username = "alice@example.com", roles = "USER")
+    void changePasswordFailsValidationWith400OnBlankOrShortPassword() throws Exception {
+        ChangePasswordRequest request = new ChangePasswordRequest("", "123");
+
+        mockMvc.perform(post("/api/v1/auth/change-password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
     }
 }

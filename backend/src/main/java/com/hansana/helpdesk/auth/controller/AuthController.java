@@ -1,5 +1,6 @@
 package com.hansana.helpdesk.auth.controller;
 
+import com.hansana.helpdesk.auth.dto.ChangePasswordRequest;
 import com.hansana.helpdesk.auth.dto.LoginRequest;
 import com.hansana.helpdesk.auth.dto.LoginResponse;
 import com.hansana.helpdesk.auth.dto.RegisterRequest;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -42,5 +44,13 @@ public class AuthController {
     public ResponseEntity<UserResponse> getCurrentUser(Principal principal) {
         UserResponse response = authService.getCurrentUser(principal.getName());
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/change-password")
+    public ResponseEntity<Map<String, String>> changePassword(
+            @Valid @RequestBody ChangePasswordRequest request,
+            Principal principal) {
+        authService.changePassword(principal.getName(), request);
+        return ResponseEntity.ok(Map.of("message", "Password changed successfully"));
     }
 }

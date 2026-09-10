@@ -36,6 +36,21 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, "Conflict", "A duplicate or conflicting resource already exists", request.getRequestURI());
     }
 
+    @ExceptionHandler(SelfDeactivationException.class)
+    public ResponseEntity<Map<String, Object>> handleSelfDeactivation(SelfDeactivationException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.BAD_REQUEST, "Bad Request", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(LastActiveAdminException.class)
+    public ResponseEntity<Map<String, Object>> handleLastActiveAdmin(LastActiveAdminException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.CONFLICT, "Conflict", ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(EmailDeliveryException.class)
+    public ResponseEntity<Map<String, Object>> handleEmailDelivery(EmailDeliveryException ex, HttpServletRequest request) {
+        return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", ex.getMessage(), request.getRequestURI());
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleNotFound(ResourceNotFoundException ex, HttpServletRequest request) {
         return buildResponse(HttpStatus.NOT_FOUND, "Not Found", ex.getMessage(), request.getRequestURI());

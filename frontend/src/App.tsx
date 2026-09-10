@@ -3,6 +3,7 @@ import { AuthProvider } from '@/context/AuthContext';
 import { ProtectedRoute, PublicOnlyRoute } from '@/components/routing/ProtectedRoute';
 import { LoginPage } from '@/pages/auth/LoginPage';
 import { RegisterPage } from '@/pages/auth/RegisterPage';
+import { ChangePasswordPage } from '@/pages/auth/ChangePasswordPage';
 import { UserDashboard } from '@/pages/user/UserDashboard';
 import { MyTicketsPage } from '@/pages/user/MyTicketsPage';
 import { CreateTicketPage } from '@/pages/user/CreateTicketPage';
@@ -15,6 +16,25 @@ import { AdminTicketsPage } from '@/pages/admin/AdminTicketsPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
 import { AdminAgentsPage } from '@/pages/admin/AdminAgentsPage';
 import { AdminCategoriesPage } from '@/pages/admin/AdminCategoriesPage';
+import { useAuth } from '@/context/AuthContext';
+import { roleHomePaths } from '@/config/navigation';
+
+/**
+ * Route guard for /change-password:
+ * - Unauthenticated users → /login
+ * - Authenticated users who no longer need a password change → their home dashboard
+ * - Authenticated users with mustChangePassword=true → render the page
+ */
+function ChangePasswordRoute() {
+  const { user, token } = useAuth();
+  if (!user || !token) {
+    return <Navigate to="/login" replace />;
+  }
+  if (!user.mustChangePassword) {
+    return <Navigate to={roleHomePaths[user.role]} replace />;
+  }
+  return <ChangePasswordPage />;
+}
 
 export default function App() {
   return (
@@ -24,6 +44,9 @@ export default function App() {
           {/* Public */}
           <Route path="/login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
           <Route path="/register" element={<PublicOnlyRoute><RegisterPage /></PublicOnlyRoute>} />
+
+          {/* Forced password change — accessible to authenticated users with mustChangePassword=true */}
+          <Route path="/change-password" element={<ChangePasswordRoute />} />
 
           {/* USER routes */}
           <Route path="/dashboard" element={<ProtectedRoute allowedRoles={['USER']}><UserDashboard /></ProtectedRoute>} />

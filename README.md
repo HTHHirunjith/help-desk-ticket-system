@@ -176,6 +176,12 @@ The `.env` file is git-ignored. Variables required for the backend:
 | `DATABASE_USERNAME`  | Database user                                 |
 | `DATABASE_PASSWORD`  | Database password                             |
 | `JWT_SECRET`         | Random secret key for JWT signing (min 256-bit) |
+| `MAIL_HOST`          | SMTP server host (e.g., smtp.gmail.com)       |
+| `MAIL_PORT`          | SMTP server port (e.g., 587)                  |
+| `MAIL_USERNAME`      | SMTP username for sending onboarding emails   |
+| `MAIL_PASSWORD`      | SMTP password or App Password                 |
+
+Note: Real SMTP credentials (`MAIL_USERNAME` and `MAIL_PASSWORD`) are required to actually send onboarding emails with temporary passwords when creating `SUPPORT_AGENT` and `ADMIN` accounts.
 
 Optional variables and development seeding configuration are documented in [`backend/.env.example`](backend/.env.example) and [`docs/development-status.md`](docs/development-status.md).
 

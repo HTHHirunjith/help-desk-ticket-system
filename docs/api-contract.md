@@ -326,9 +326,102 @@ Response:
   "lastName": "Doe",
   "role": "USER",
   "active": true,
+  "mustChangePassword": false,
   "avatarUrl": null
 }
 ```
+
+### 3.4 Change password
+
+```http
+POST /api/v1/auth/change-password
+```
+
+**Access:** Authenticated
+
+Request:
+
+```json
+{
+  "currentPassword": "TempPassword123!",
+  "newPassword": "PermanentPassword456!"
+}
+```
+
+Success:
+
+```http
+200 OK
+```
+
+Response:
+
+```json
+{
+  "message": "Password changed successfully"
+}
+```
+
+Errors:
+
+* `400 Bad Request` — validation failure (e.g. blank or short password).
+* `401 Unauthorized` — unauthenticated or current password does not match.
+
+### 3.5 User management (Admin only)
+
+#### List Users
+```http
+GET /api/v1/users?role={role}&active={active}
+```
+**Access:** ADMIN only
+
+#### Get User by ID
+```http
+GET /api/v1/users/{userId}
+```
+**Access:** ADMIN only
+
+#### Create Privileged Account (SUPPORT_AGENT / ADMIN)
+```http
+POST /api/v1/users
+```
+**Access:** ADMIN only
+
+Request:
+```json
+{
+  "firstName": "Jane",
+  "lastName": "Doe",
+  "email": "jane.doe@example.com",
+  "role": "SUPPORT_AGENT"
+}
+```
+*Note: Client does not supply a password. The backend generates a cryptographically secure temporary password, hashes it with BCrypt, stores `mustChangePassword = true`, and delivers temporary credentials via email.*
+
+Success:
+```http
+201 Created
+```
+
+#### Update User Profile
+```http
+PATCH /api/v1/users/{userId}
+```
+**Access:** ADMIN only
+Updates permitted non-security profile fields (`firstName`, `lastName`, `email`). Role and active status cannot be modified via PATCH.
+
+#### Activate User
+```http
+POST /api/v1/users/{userId}/activate
+```
+**Access:** ADMIN only
+
+#### Deactivate User
+```http
+POST /api/v1/users/{userId}/deactivate
+```
+**Access:** ADMIN only
+*Admin safety rules: Admin cannot deactivate themselves (400 Bad Request). Cannot deactivate the last active ADMIN (409 Conflict).*
 
 ## 4. Tickets
 

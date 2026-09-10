@@ -179,4 +179,40 @@ class AuthServiceTest {
         assertEquals("Smith", response.getLastName());
         assertEquals(UserRole.USER, response.getRole());
     }
+
+    @Test
+    void changePassword_withValidCurrentPassword_updatesPasswordAndClearsMustChangePassword() {
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setEmail("agent@helpdesk.dev");
+        user.setPassword("$2a$10$oldHash");
+        user.setMustChangePassword(true);
+
+        when(userRepository.findByEmail("agent@helpdesk.dev")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("TempPass123", "$2a$10$oldHash")).thenReturn(true);
+        when(passwordEncoder.encode("PermanentPass123")).thenReturn("$2a$10$newHash");
+
+        authService.changePassword("agent@helpdesk.dev", new com.hansana.helpdesk.auth.dto.ChangePasswordRequest("TempPass123", "PermanentPass123"));
+
+        assertEquals("$2a$10$newHash", user.getPassword());
+        org.junit.jupiter.api.Assertions.assertFalse(user.isMustChangePassword());
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void changePassword_withInvalidCurrentPassword_throwsBadCredentialsException() {
+        User user = new User();
+        user.setId(UUID.randomUUID());
+        user.setEmail("agent@helpdesk.dev");
+        user.setPassword("$2a$10$oldHash");
+
+        when(userRepository.findByEmail("agent@helpdesk.dev")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("WrongPass", "$2a$10$oldHash")).thenReturn(false);
+
+        BadCredentialsException ex = assertThrows(BadCredentialsException.class, () ->
+                authService.changePassword("agent@helpdesk.dev", new com.hansana.helpdesk.auth.dto.ChangePasswordRequest("WrongPass", "NewPass123")));
+
+        assertEquals("Current password is incorrect", ex.getMessage());
+        verify(userRepository, never()).save(any());
+    }
 }

@@ -18,6 +18,11 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Force users with a temporary password to change it before accessing the app.
+  if (user.mustChangePassword) {
+    return <Navigate to="/change-password" replace />;
+  }
+
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to={roleHomePaths[user.role]} replace />;
   }
