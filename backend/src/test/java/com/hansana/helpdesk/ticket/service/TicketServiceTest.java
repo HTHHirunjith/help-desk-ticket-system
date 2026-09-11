@@ -39,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -188,37 +189,136 @@ class TicketServiceTest {
         @Test
         void userScopeQueriesByRequester() {
             Pageable pageable = PageRequest.of(0, 10);
-            when(ticketRepository.findByRequesterWithFilters(requesterPrincipal.getId(), null, null, null, pageable))
+            when(ticketRepository.findByRequesterWithFilters(requesterPrincipal.getId(), null, null, null, null, pageable))
                     .thenReturn(new PageImpl<>(List.of()));
 
-            PagedResponse<TicketSummaryResponse> res = ticketService.listTickets(requesterPrincipal, null, null, null, pageable);
+            PagedResponse<TicketSummaryResponse> res = ticketService.listTickets(requesterPrincipal, null, null, null, null, pageable);
 
             assertNotNull(res);
-            verify(ticketRepository).findByRequesterWithFilters(requesterPrincipal.getId(), null, null, null, pageable);
+            verify(ticketRepository).findByRequesterWithFilters(requesterPrincipal.getId(), null, null, null, null, pageable);
         }
 
         @Test
         void agentScopeQueriesByAssignedAgent() {
             Pageable pageable = PageRequest.of(0, 10);
-            when(ticketRepository.findByAssignedAgentWithFilters(agentPrincipal.getId(), TicketStatus.OPEN, null, null, pageable))
+            when(ticketRepository.findByAssignedAgentWithFilters(agentPrincipal.getId(), "OPEN", null, null, null, pageable))
                     .thenReturn(new PageImpl<>(List.of()));
 
-            PagedResponse<TicketSummaryResponse> res = ticketService.listTickets(agentPrincipal, TicketStatus.OPEN, null, null, pageable);
+            PagedResponse<TicketSummaryResponse> res = ticketService.listTickets(agentPrincipal, null, TicketStatus.OPEN, null, null, pageable);
 
             assertNotNull(res);
-            verify(ticketRepository).findByAssignedAgentWithFilters(agentPrincipal.getId(), TicketStatus.OPEN, null, null, pageable);
+            verify(ticketRepository).findByAssignedAgentWithFilters(agentPrincipal.getId(), "OPEN", null, null, null, pageable);
         }
 
         @Test
         void adminScopeQueriesAll() {
             Pageable pageable = PageRequest.of(0, 10);
-            when(ticketRepository.findAllWithFilters(null, TicketPriority.HIGH, null, pageable))
+            when(ticketRepository.findAllWithFilters(null, "HIGH", null, null, pageable))
                     .thenReturn(new PageImpl<>(List.of()));
 
-            PagedResponse<TicketSummaryResponse> res = ticketService.listTickets(adminPrincipal, null, TicketPriority.HIGH, null, pageable);
+            PagedResponse<TicketSummaryResponse> res = ticketService.listTickets(adminPrincipal, null, null, TicketPriority.HIGH, null, pageable);
 
             assertNotNull(res);
-            verify(ticketRepository).findAllWithFilters(null, TicketPriority.HIGH, null, pageable);
+            verify(ticketRepository).findAllWithFilters(null, "HIGH", null, null, pageable);
+        }
+
+        @Test
+        void searchTrimsAndEscapesWildcards() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(ticketRepository.findAllWithFilters(null, null, null, "50!% discount!_issue!!", pageable))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            PagedResponse<TicketSummaryResponse> res = ticketService.listTickets(adminPrincipal, "  50% discount_issue!  ", null, null, null, pageable);
+
+            assertNotNull(res);
+            verify(ticketRepository).findAllWithFilters(null, null, null, "50!% discount!_issue!!", pageable);
+        }
+
+        @Test
+        void searchStripsLeadingHash() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(ticketRepository.findByRequesterWithFilters(requesterPrincipal.getId(), null, null, null, "1001", pageable))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            PagedResponse<TicketSummaryResponse> res = ticketService.listTickets(requesterPrincipal, " #1001 ", null, null, null, pageable);
+
+            assertNotNull(res);
+            verify(ticketRepository).findByRequesterWithFilters(requesterPrincipal.getId(), null, null, null, "1001", pageable);
+        }
+
+        @Test
+        void blankOrWhitespaceOrOnlyHashTreatedAsNoSearch() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(ticketRepository.findAllWithFilters(null, null, null, null, pageable))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            ticketService.listTickets(adminPrincipal, "", null, null, null, pageable);
+            ticketService.listTickets(adminPrincipal, "   ", null, null, null, pageable);
+            ticketService.listTickets(adminPrincipal, "#", null, null, null, pageable);
+            ticketService.listTickets(adminPrincipal, " # ", null, null, null, pageable);
+
+            verify(ticketRepository, times(4)).findAllWithFilters(null, null, null, null, pageable);
+        }
+
+        @Test
+        void combinedFiltersWithSearchAppliedCorrectly() {
+            Pageable pageable = PageRequest.of(0, 15);
+            UUID catId = UUID.randomUUID();
+            when(ticketRepository.findByAssignedAgentWithFilters(agentPrincipal.getId(), "IN_PROGRESS", "URGENT", catId, "laptop", pageable))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            PagedResponse<TicketSummaryResponse> res = ticketService.listTickets(agentPrincipal, "laptop", TicketStatus.IN_PROGRESS, TicketPriority.URGENT, catId, pageable);
+
+            assertNotNull(res);
+            verify(ticketRepository).findByAssignedAgentWithFilters(agentPrincipal.getId(), "IN_PROGRESS", "URGENT", catId, "laptop", pageable);
+        }
+
+        @Test
+        void userSearchIsConfinedToRequesterScope() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(ticketRepository.findByRequesterWithFilters(requesterPrincipal.getId(), null, null, null, "confidential", pageable))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            ticketService.listTickets(requesterPrincipal, "confidential", null, null, null, pageable);
+
+            verify(ticketRepository).findByRequesterWithFilters(requesterPrincipal.getId(), null, null, null, "confidential", pageable);
+            verify(ticketRepository, never()).findAllWithFilters(any(), any(), any(), any(), any());
+            verify(ticketRepository, never()).findByAssignedAgentWithFilters(any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        void agentSearchIsConfinedToAssignedAgentScope() {
+            Pageable pageable = PageRequest.of(0, 10);
+            when(ticketRepository.findByAssignedAgentWithFilters(agentPrincipal.getId(), null, null, null, "secret", pageable))
+                    .thenReturn(new PageImpl<>(List.of()));
+
+            ticketService.listTickets(agentPrincipal, "secret", null, null, null, pageable);
+
+            verify(ticketRepository).findByAssignedAgentWithFilters(agentPrincipal.getId(), null, null, null, "secret", pageable);
+            verify(ticketRepository, never()).findAllWithFilters(any(), any(), any(), any(), any());
+            verify(ticketRepository, never()).findByRequesterWithFilters(any(), any(), any(), any(), any(), any());
+        }
+
+        @Test
+        void paginationAndSortingPreservedInSearchPagedResponse() {
+            Pageable pageable = PageRequest.of(2, 5, org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "updatedAt"));
+            Ticket ticket1 = new Ticket("Ticket 1", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket1.setId(UUID.randomUUID());
+            ticket1.setTicketNumber(1001L);
+
+            Page<Ticket> mockPage = new PageImpl<>(List.of(ticket1), pageable, 11);
+            when(ticketRepository.findAllWithFilters(null, null, null, "searchterm", PageRequest.of(2, 5)))
+                    .thenReturn(mockPage);
+
+            PagedResponse<TicketSummaryResponse> res = ticketService.listTickets(adminPrincipal, "searchterm", null, null, null, pageable);
+
+            assertNotNull(res);
+            assertEquals(2, res.pageNumber());
+            assertEquals(5, res.pageSize());
+            assertEquals(11, res.totalElements());
+            assertEquals(3, res.totalPages());
+            assertEquals(1, res.content().size());
+            assertEquals(1001L, res.content().get(0).ticketNumber());
         }
     }
 

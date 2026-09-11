@@ -146,6 +146,46 @@ class TicketEntityAndRepositoryTest {
         assertEquals(Optional.class, method.getReturnType());
     }
 
+    @Test
+    void ticketRepositoryFilterQueriesUseNativeSqlWithIlike() throws NoSuchMethodException {
+        Method requesterMethod = TicketRepository.class.getMethod(
+                "findByRequesterWithFilters", UUID.class, String.class, String.class, UUID.class, String.class, org.springframework.data.domain.Pageable.class);
+        org.springframework.data.jpa.repository.Query reqQuery = requesterMethod.getAnnotation(org.springframework.data.jpa.repository.Query.class);
+        assertNotNull(reqQuery);
+        assertTrue(reqQuery.nativeQuery(), "findByRequesterWithFilters must use nativeQuery = true");
+        String reqSql = reqQuery.value();
+        assertTrue(reqSql.contains(":search IS NULL"), "query must guard search with null check");
+        assertTrue(reqSql.contains("ILIKE"), "query must use ILIKE for case-insensitive search");
+        assertTrue(reqSql.contains("t.title ILIKE"), "query must search title");
+        assertTrue(reqSql.contains("t.description ILIKE"), "query must search description");
+        assertTrue(reqSql.contains("ticket_number"), "query must search ticket_number");
+        assertTrue(reqSql.contains("ESCAPE '!'"), "query must have ESCAPE clause");
+        assertTrue(reqSql.contains("t.requester_id = :requesterId"), "query must scope by requester");
+
+        assertTrue(reqSql.contains("ORDER BY t.updated_at DESC"), "query must explicitly sort by updated_at DESC");
+
+        Method agentMethod = TicketRepository.class.getMethod(
+                "findByAssignedAgentWithFilters", UUID.class, String.class, String.class, UUID.class, String.class, org.springframework.data.domain.Pageable.class);
+        org.springframework.data.jpa.repository.Query agentQuery = agentMethod.getAnnotation(org.springframework.data.jpa.repository.Query.class);
+        assertNotNull(agentQuery);
+        assertTrue(agentQuery.nativeQuery(), "findByAssignedAgentWithFilters must use nativeQuery = true");
+        String agentSql = agentQuery.value();
+        assertTrue(agentSql.contains(":search IS NULL"));
+        assertTrue(agentSql.contains("ILIKE"));
+        assertTrue(agentSql.contains("t.assigned_agent_id = :agentId"), "query must scope by agent");
+        assertTrue(agentSql.contains("ORDER BY t.updated_at DESC"), "query must explicitly sort by updated_at DESC");
+
+        Method allMethod = TicketRepository.class.getMethod(
+                "findAllWithFilters", String.class, String.class, UUID.class, String.class, org.springframework.data.domain.Pageable.class);
+        org.springframework.data.jpa.repository.Query allQuery = allMethod.getAnnotation(org.springframework.data.jpa.repository.Query.class);
+        assertNotNull(allQuery);
+        assertTrue(allQuery.nativeQuery(), "findAllWithFilters must use nativeQuery = true");
+        String allSql = allQuery.value();
+        assertTrue(allSql.contains(":search IS NULL"));
+        assertTrue(allSql.contains("ILIKE"));
+        assertTrue(allSql.contains("ORDER BY t.updated_at DESC"), "query must explicitly sort by updated_at DESC");
+    }
+
     private static String columnName(Field field) {
         Column column = field.getAnnotation(Column.class);
         assertNotNull(column);

@@ -6,7 +6,7 @@ import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { TicketTable } from '@/components/tickets/TicketList';
 import { Card, EmptyState, InlineLoader, Button, ErrorState } from '@/components/ui';
-import { Inbox, Filter } from 'lucide-react';
+import { Inbox, Filter, Search } from 'lucide-react';
 
 const statuses: TicketStatus[] = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 const priorities: TicketPriority[] = ['LOW', 'MEDIUM', 'HIGH', 'URGENT'];
@@ -18,12 +18,23 @@ export function AdminTicketsPage() {
   const [error, setError] = useState<string | null>(null);
 
   // Filters and pagination
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<TicketStatus | ''>('');
   const [selectedPriority, setSelectedPriority] = useState<TicketPriority | ''>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [totalElements, setTotalElements] = useState(0);
+
+  // Debounce search input
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(0);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchInput]);
 
   // Load categories for filter
   useEffect(() => {
@@ -49,6 +60,7 @@ export function AdminTicketsPage() {
       const response = await ticketApi.getTickets({
         page,
         size: 15,
+        search: search.trim() ? search.trim() : undefined,
         status: selectedStatus ? selectedStatus : undefined,
         priority: selectedPriority ? selectedPriority : undefined,
         categoryId: selectedCategory ? selectedCategory : undefined,
@@ -61,20 +73,22 @@ export function AdminTicketsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, selectedStatus, selectedPriority, selectedCategory]);
+  }, [page, search, selectedStatus, selectedPriority, selectedCategory]);
 
   useEffect(() => {
     fetchTickets();
   }, [fetchTickets]);
 
   const handleClearFilters = () => {
+    setSearchInput('');
+    setSearch('');
     setSelectedStatus('');
     setSelectedPriority('');
     setSelectedCategory('');
     setPage(0);
   };
 
-  const hasFilters = selectedStatus !== '' || selectedPriority !== '' || selectedCategory !== '';
+  const hasFilters = searchInput.trim() !== '' || selectedStatus !== '' || selectedPriority !== '' || selectedCategory !== '';
 
   return (
     <AppLayout>
@@ -87,7 +101,7 @@ export function AdminTicketsPage() {
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-6">
         <div className="flex items-center gap-2 mb-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">
           <Filter size={14} />
-          <span>Filters</span>
+          <span>Filters & Search</span>
           {hasFilters && (
             <button
               onClick={handleClearFilters}
@@ -97,6 +111,21 @@ export function AdminTicketsPage() {
             </button>
           )}
         </div>
+
+        {/* Search Input */}
+        <div className="mb-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search by title, description, or #ticket number..."
+              className="w-full h-9 pl-9 pr-3 text-xs rounded-lg border border-slate-300 bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            />
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <select
             value={selectedStatus}
@@ -159,7 +188,7 @@ export function AdminTicketsPage() {
             title={hasFilters ? 'No matching tickets' : 'No tickets'}
             description={
               hasFilters
-                ? 'No tickets match your filter criteria.'
+                ? 'No tickets match your search or filter criteria. Try adjusting your search term or clearing filters.'
                 : 'There are no support tickets in the system.'
             }
             action={

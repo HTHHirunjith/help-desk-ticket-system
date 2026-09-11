@@ -182,6 +182,7 @@ export interface CreateCommentPayload {
 export interface TicketFilterParams {
   page?: number;
   size?: number;
+  search?: string;
   status?: TicketStatus;
   priority?: TicketPriority;
   categoryId?: string;

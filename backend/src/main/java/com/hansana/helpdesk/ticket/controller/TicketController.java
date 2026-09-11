@@ -49,11 +49,12 @@ public class TicketController {
     @GetMapping
     public ResponseEntity<PagedResponse<TicketSummaryResponse>> listTickets(
             @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam(name = "search", required = false) String search,
             @RequestParam(name = "status", required = false) TicketStatus status,
             @RequestParam(name = "priority", required = false) TicketPriority priority,
             @RequestParam(name = "categoryId", required = false) UUID categoryId,
             @PageableDefault(sort = "updatedAt", direction = Sort.Direction.DESC) Pageable pageable) {
-        PagedResponse<TicketSummaryResponse> response = ticketService.listTickets(principal, status, priority, categoryId, pageable);
+        PagedResponse<TicketSummaryResponse> response = ticketService.listTickets(principal, search, status, priority, categoryId, pageable);
         return ResponseEntity.ok(response);
     }
 

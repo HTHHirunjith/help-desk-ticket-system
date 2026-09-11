@@ -185,9 +185,24 @@ class TicketControllerSecurityTest {
         @WithMockUser(username = "user@helpdesk.dev", roles = {"USER"})
         void authenticatedUserCanListTickets() throws Exception {
             PagedResponse<TicketSummaryResponse> emptyPage = new PagedResponse<>(List.of(), 0, 20, 0, 0, true);
-            when(ticketService.listTickets(any(), any(), any(), any(), any())).thenReturn(emptyPage);
+            when(ticketService.listTickets(any(), any(), any(), any(), any(), any())).thenReturn(emptyPage);
 
             mockMvc.perform(get("/api/v1/tickets"))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalElements", is(0)));
+        }
+
+        @Test
+        @WithMockUser(username = "user@helpdesk.dev", roles = {"USER"})
+        void authenticatedUserCanListTicketsWithSearchAndFilters() throws Exception {
+            PagedResponse<TicketSummaryResponse> emptyPage = new PagedResponse<>(List.of(), 0, 15, 0, 0, true);
+            when(ticketService.listTickets(any(), eq("printer"), eq(TicketStatus.OPEN), eq(TicketPriority.HIGH), any(), any()))
+                    .thenReturn(emptyPage);
+
+            mockMvc.perform(get("/api/v1/tickets")
+                            .param("search", "printer")
+                            .param("status", "OPEN")
+                            .param("priority", "HIGH"))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.totalElements", is(0)));
         }

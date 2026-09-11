@@ -6,6 +6,8 @@ import com.hansana.helpdesk.ticket.entity.TicketStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -26,35 +28,84 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
 
     Page<Ticket> findByCategoryId(UUID categoryId, Pageable pageable);
 
-    @org.springframework.data.jpa.repository.Query("SELECT t FROM Ticket t WHERE t.requester.id = :requesterId " +
+    @Query(value = "SELECT t.* FROM tickets t " +
+           "WHERE t.requester_id = :requesterId " +
            "AND (:status IS NULL OR t.status = :status) " +
            "AND (:priority IS NULL OR t.priority = :priority) " +
-           "AND (:categoryId IS NULL OR t.category.id = :categoryId)")
+           "AND (:categoryId IS NULL OR t.category_id = CAST(:categoryId AS uuid)) " +
+           "AND (:search IS NULL OR (" +
+           "t.title ILIKE CONCAT('%', :search, '%') ESCAPE '!' OR " +
+           "t.description ILIKE CONCAT('%', :search, '%') ESCAPE '!' OR " +
+           "CAST(t.ticket_number AS TEXT) LIKE CONCAT('%', :search, '%') ESCAPE '!')) " +
+           "ORDER BY t.updated_at DESC",
+           countQuery = "SELECT COUNT(t.id) FROM tickets t " +
+           "WHERE t.requester_id = :requesterId " +
+           "AND (:status IS NULL OR t.status = :status) " +
+           "AND (:priority IS NULL OR t.priority = :priority) " +
+           "AND (:categoryId IS NULL OR t.category_id = CAST(:categoryId AS uuid)) " +
+           "AND (:search IS NULL OR (" +
+           "t.title ILIKE CONCAT('%', :search, '%') ESCAPE '!' OR " +
+           "t.description ILIKE CONCAT('%', :search, '%') ESCAPE '!' OR " +
+           "CAST(t.ticket_number AS TEXT) LIKE CONCAT('%', :search, '%') ESCAPE '!'))",
+           nativeQuery = true)
     Page<Ticket> findByRequesterWithFilters(
-            @org.springframework.data.repository.query.Param("requesterId") UUID requesterId,
-            @org.springframework.data.repository.query.Param("status") TicketStatus status,
-            @org.springframework.data.repository.query.Param("priority") TicketPriority priority,
-            @org.springframework.data.repository.query.Param("categoryId") UUID categoryId,
+            @Param("requesterId") UUID requesterId,
+            @Param("status") String status,
+            @Param("priority") String priority,
+            @Param("categoryId") UUID categoryId,
+            @Param("search") String search,
             Pageable pageable);
 
-    @org.springframework.data.jpa.repository.Query("SELECT t FROM Ticket t WHERE t.assignedAgent.id = :agentId " +
+    @Query(value = "SELECT t.* FROM tickets t " +
+           "WHERE t.assigned_agent_id = :agentId " +
            "AND (:status IS NULL OR t.status = :status) " +
            "AND (:priority IS NULL OR t.priority = :priority) " +
-           "AND (:categoryId IS NULL OR t.category.id = :categoryId)")
+           "AND (:categoryId IS NULL OR t.category_id = CAST(:categoryId AS uuid)) " +
+           "AND (:search IS NULL OR (" +
+           "t.title ILIKE CONCAT('%', :search, '%') ESCAPE '!' OR " +
+           "t.description ILIKE CONCAT('%', :search, '%') ESCAPE '!' OR " +
+           "CAST(t.ticket_number AS TEXT) LIKE CONCAT('%', :search, '%') ESCAPE '!')) " +
+           "ORDER BY t.updated_at DESC",
+           countQuery = "SELECT COUNT(t.id) FROM tickets t " +
+           "WHERE t.assigned_agent_id = :agentId " +
+           "AND (:status IS NULL OR t.status = :status) " +
+           "AND (:priority IS NULL OR t.priority = :priority) " +
+           "AND (:categoryId IS NULL OR t.category_id = CAST(:categoryId AS uuid)) " +
+           "AND (:search IS NULL OR (" +
+           "t.title ILIKE CONCAT('%', :search, '%') ESCAPE '!' OR " +
+           "t.description ILIKE CONCAT('%', :search, '%') ESCAPE '!' OR " +
+           "CAST(t.ticket_number AS TEXT) LIKE CONCAT('%', :search, '%') ESCAPE '!'))",
+           nativeQuery = true)
     Page<Ticket> findByAssignedAgentWithFilters(
-            @org.springframework.data.repository.query.Param("agentId") UUID agentId,
-            @org.springframework.data.repository.query.Param("status") TicketStatus status,
-            @org.springframework.data.repository.query.Param("priority") TicketPriority priority,
-            @org.springframework.data.repository.query.Param("categoryId") UUID categoryId,
+            @Param("agentId") UUID agentId,
+            @Param("status") String status,
+            @Param("priority") String priority,
+            @Param("categoryId") UUID categoryId,
+            @Param("search") String search,
             Pageable pageable);
 
-    @org.springframework.data.jpa.repository.Query("SELECT t FROM Ticket t WHERE " +
-           "(:status IS NULL OR t.status = :status) " +
+    @Query(value = "SELECT t.* FROM tickets t " +
+           "WHERE (:status IS NULL OR t.status = :status) " +
            "AND (:priority IS NULL OR t.priority = :priority) " +
-           "AND (:categoryId IS NULL OR t.category.id = :categoryId)")
+           "AND (:categoryId IS NULL OR t.category_id = CAST(:categoryId AS uuid)) " +
+           "AND (:search IS NULL OR (" +
+           "t.title ILIKE CONCAT('%', :search, '%') ESCAPE '!' OR " +
+           "t.description ILIKE CONCAT('%', :search, '%') ESCAPE '!' OR " +
+           "CAST(t.ticket_number AS TEXT) LIKE CONCAT('%', :search, '%') ESCAPE '!')) " +
+           "ORDER BY t.updated_at DESC",
+           countQuery = "SELECT COUNT(t.id) FROM tickets t " +
+           "WHERE (:status IS NULL OR t.status = :status) " +
+           "AND (:priority IS NULL OR t.priority = :priority) " +
+           "AND (:categoryId IS NULL OR t.category_id = CAST(:categoryId AS uuid)) " +
+           "AND (:search IS NULL OR (" +
+           "t.title ILIKE CONCAT('%', :search, '%') ESCAPE '!' OR " +
+           "t.description ILIKE CONCAT('%', :search, '%') ESCAPE '!' OR " +
+           "CAST(t.ticket_number AS TEXT) LIKE CONCAT('%', :search, '%') ESCAPE '!'))",
+           nativeQuery = true)
     Page<Ticket> findAllWithFilters(
-            @org.springframework.data.repository.query.Param("status") TicketStatus status,
-            @org.springframework.data.repository.query.Param("priority") TicketPriority priority,
-            @org.springframework.data.repository.query.Param("categoryId") UUID categoryId,
+            @Param("status") String status,
+            @Param("priority") String priority,
+            @Param("categoryId") UUID categoryId,
+            @Param("search") String search,
             Pageable pageable);
 }

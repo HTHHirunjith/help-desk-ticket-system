@@ -24,6 +24,7 @@ import com.hansana.helpdesk.user.entity.User;
 import com.hansana.helpdesk.user.entity.UserRole;
 import com.hansana.helpdesk.user.repository.UserRepository;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -77,23 +78,57 @@ public class TicketService {
     @Transactional(readOnly = true)
     public PagedResponse<TicketSummaryResponse> listTickets(
             UserPrincipal principal,
+            String search,
             TicketStatus status,
             TicketPriority priority,
             UUID categoryId,
             Pageable pageable) {
 
+        String sanitizedSearch = sanitizeSearch(search);
+        String statusStr = (status != null) ? status.name() : null;
+        String priorityStr = (priority != null) ? priority.name() : null;
+        Pageable repoPageable = (pageable != null)
+                ? PageRequest.of(pageable.getPageNumber(), pageable.getPageSize())
+                : PageRequest.of(0, 20);
         Page<Ticket> page;
         UserRole role = principal.getRole();
 
         if (role == UserRole.USER) {
-            page = ticketRepository.findByRequesterWithFilters(principal.getId(), status, priority, categoryId, pageable);
+            page = ticketRepository.findByRequesterWithFilters(principal.getId(), statusStr, priorityStr, categoryId, sanitizedSearch, repoPageable);
         } else if (role == UserRole.SUPPORT_AGENT) {
-            page = ticketRepository.findByAssignedAgentWithFilters(principal.getId(), status, priority, categoryId, pageable);
+            page = ticketRepository.findByAssignedAgentWithFilters(principal.getId(), statusStr, priorityStr, categoryId, sanitizedSearch, repoPageable);
         } else {
-            page = ticketRepository.findAllWithFilters(status, priority, categoryId, pageable);
+            page = ticketRepository.findAllWithFilters(statusStr, priorityStr, categoryId, sanitizedSearch, repoPageable);
         }
 
         return PagedResponse.from(page.map(TicketSummaryResponse::from));
+    }
+
+    private String sanitizeSearch(String search) {
+        if (search == null) {
+            return null;
+        }
+        String trimmed = search.trim();
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        if (trimmed.startsWith("#")) {
+            trimmed = trimmed.substring(1).trim();
+        }
+        if (trimmed.isEmpty()) {
+            return null;
+        }
+        return escapeLike(trimmed);
+    }
+
+    private String escapeLike(String input) {
+        if (input == null) {
+            return null;
+        }
+        return input
+                .replace("!", "!!")
+                .replace("%", "!%")
+                .replace("_", "!_");
     }
 
     @Transactional(readOnly = true)
