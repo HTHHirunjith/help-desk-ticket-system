@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { ticketApi } from '@/api/tickets';
+import { dashboardApi } from '@/api/dashboard';
 import { extractErrorMessage } from '@/api/auth';
-import type { TicketSummary } from '@/types';
+import type { TicketSummary, UserDashboardStats } from '@/types';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { StatCard, StatGrid } from '@/components/dashboard/StatCard';
@@ -17,35 +18,28 @@ export function UserDashboard() {
   const navigate = useNavigate();
 
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
-  const [totalElements, setTotalElements] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Derive status distribution from loaded recent tickets or page
-  const [stats, setStats] = useState({ total: 0, open: 0, inProgress: 0, resolved: 0, closed: 0 });
+  const [stats, setStats] = useState<UserDashboardStats>({
+    totalTickets: 0,
+    openTickets: 0,
+    inProgressTickets: 0,
+    resolvedTickets: 0,
+    closedTickets: 0,
+  });
 
   const fetchDashboardData = async () => {
     if (!user) return;
     setLoading(true);
     setError(null);
     try {
-      // Load recent tickets (backend scopes to USER's owned tickets)
-      const response = await ticketApi.getTickets({ page: 0, size: 20 });
-      setTickets(response.content);
-      setTotalElements(response.totalElements);
-
-      const openCount = response.content.filter((t) => t.status === 'OPEN').length;
-      const inProgCount = response.content.filter((t) => t.status === 'IN_PROGRESS').length;
-      const resolvedCount = response.content.filter((t) => t.status === 'RESOLVED').length;
-      const closedCount = response.content.filter((t) => t.status === 'CLOSED').length;
-
-      setStats({
-        total: response.totalElements,
-        open: openCount,
-        inProgress: inProgCount,
-        resolved: resolvedCount,
-        closed: closedCount,
-      });
+      const [statsData, ticketsResponse] = await Promise.all([
+        dashboardApi.getUserDashboard(),
+        ticketApi.getTickets({ page: 0, size: 5 }),
+      ]);
+      setStats(statsData);
+      setTickets(ticketsResponse.content);
     } catch (err) {
       setError(extractErrorMessage(err, 'Failed to load dashboard data.'));
     } finally {
@@ -91,10 +85,10 @@ export function UserDashboard() {
       />
 
       <StatGrid columns={4}>
-        <StatCard label="Total Tickets" value={totalElements} icon={Inbox} accent="slate" />
-        <StatCard label="Open" value={stats.open} icon={Clock} accent="blue" />
-        <StatCard label="In Progress" value={stats.inProgress} icon={AlertTriangle} accent="amber" />
-        <StatCard label="Resolved" value={stats.resolved} icon={CheckCircle} accent="emerald" />
+        <StatCard label="Total Tickets" value={stats.totalTickets} icon={Inbox} accent="slate" />
+        <StatCard label="Open" value={stats.openTickets} icon={Clock} accent="blue" />
+        <StatCard label="In Progress" value={stats.inProgressTickets} icon={AlertTriangle} accent="amber" />
+        <StatCard label="Resolved" value={stats.resolvedTickets} icon={CheckCircle} accent="emerald" />
       </StatGrid>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
@@ -122,7 +116,15 @@ export function UserDashboard() {
 
         <Card>
           <CardHeader title="Ticket Status" subtitle="Distribution of your tickets" />
-          <StatusDistribution counts={stats} total={stats.total} />
+          <StatusDistribution
+            counts={{
+              open: stats.openTickets,
+              inProgress: stats.inProgressTickets,
+              resolved: stats.resolvedTickets,
+              closed: stats.closedTickets,
+            }}
+            total={stats.totalTickets}
+          />
         </Card>
       </div>
     </AppLayout>

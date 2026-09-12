@@ -214,3 +214,36 @@ export interface Agent {
   status: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
   createdAt: string;
 }
+
+export interface UserDashboardStats {
+  totalTickets: number;
+  openTickets: number;
+  inProgressTickets: number;
+  resolvedTickets: number;
+  closedTickets: number;
+}
+
+export interface AgentDashboardStats {
+  assignedTickets: number;
+  openTickets: number;
+  inProgressTickets: number;
+  resolvedTickets: number;
+  closedTickets: number;
+}
+
+export interface CategoryDistributionItem {
+  categoryId: string;
+  categoryName: string;
+  ticketCount: number;
+}
+
+export interface AdminDashboardStats {
+  totalTickets: number;
+  openTickets: number;
+  inProgressTickets: number;
+  resolvedTickets: number;
+  closedTickets: number;
+  unassignedTickets: number;
+  priorityDistribution: Record<TicketPriority, number>;
+  categoryDistribution: CategoryDistributionItem[];
+}

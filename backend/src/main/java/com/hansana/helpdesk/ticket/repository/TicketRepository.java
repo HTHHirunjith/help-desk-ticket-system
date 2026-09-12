@@ -108,4 +108,25 @@ public interface TicketRepository extends JpaRepository<Ticket, UUID> {
             @Param("categoryId") UUID categoryId,
             @Param("search") String search,
             Pageable pageable);
+
+    @Query("SELECT t.status, COUNT(t) FROM Ticket t WHERE t.requester.id = :requesterId GROUP BY t.status")
+    java.util.List<Object[]> countByStatusForRequester(@Param("requesterId") UUID requesterId);
+
+    long countByRequesterId(UUID requesterId);
+
+    @Query("SELECT t.status, COUNT(t) FROM Ticket t WHERE t.assignedAgent.id = :agentId GROUP BY t.status")
+    java.util.List<Object[]> countByStatusForAssignedAgent(@Param("agentId") UUID agentId);
+
+    long countByAssignedAgentId(UUID agentId);
+
+    @Query("SELECT t.status, COUNT(t) FROM Ticket t GROUP BY t.status")
+    java.util.List<Object[]> countByStatusSystemWide();
+
+    @Query("SELECT t.priority, COUNT(t) FROM Ticket t GROUP BY t.priority")
+    java.util.List<Object[]> countByPrioritySystemWide();
+
+    @Query("SELECT c.id, c.name, COUNT(t) FROM Ticket t JOIN t.category c GROUP BY c.id, c.name")
+    java.util.List<Object[]> countByCategorySystemWide();
+
+    long countByAssignedAgentIsNull();
 }

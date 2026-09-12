@@ -1,63 +1,47 @@
 import { useEffect, useState } from 'react';
 import { ticketApi } from '@/api/tickets';
+import { dashboardApi } from '@/api/dashboard';
 import { extractErrorMessage } from '@/api/auth';
-import type { TicketSummary } from '@/types';
+import type { TicketSummary, AdminDashboardStats } from '@/types';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { StatCard, StatGrid } from '@/components/dashboard/StatCard';
+import { StatCard } from '@/components/dashboard/StatCard';
 import { TicketList } from '@/components/tickets/TicketList';
 import { Card, CardHeader, InlineLoader, ErrorState } from '@/components/ui';
-import { StatusDistribution, PriorityDistribution } from '@/components/dashboard/Distribution';
-import { Inbox, Clock, AlertTriangle, CheckCircle, Activity } from 'lucide-react';
+import { StatusDistribution, PriorityDistribution, CategoryDistribution } from '@/components/dashboard/Distribution';
+import { Inbox, Clock, AlertTriangle, CheckCircle, Activity, HelpCircle } from 'lucide-react';
 
 export function AdminDashboard() {
   const [tickets, setTickets] = useState<TicketSummary[]>([]);
-  const [totalElements, setTotalElements] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [stats, setStats] = useState({
-    total: 0,
-    open: 0,
-    inProgress: 0,
-    resolved: 0,
-    closed: 0,
-    urgent: 0,
-    high: 0,
-    medium: 0,
-    low: 0,
+  const [stats, setStats] = useState<AdminDashboardStats>({
+    totalTickets: 0,
+    openTickets: 0,
+    inProgressTickets: 0,
+    resolvedTickets: 0,
+    closedTickets: 0,
+    unassignedTickets: 0,
+    priorityDistribution: {
+      LOW: 0,
+      MEDIUM: 0,
+      HIGH: 0,
+      URGENT: 0,
+    },
+    categoryDistribution: [],
   });
 
   const fetchAdminDashboard = async () => {
     setLoading(true);
     setError(null);
     try {
-      // Backend returns all tickets for ADMIN
-      const response = await ticketApi.getTickets({ page: 0, size: 50 });
-      setTickets(response.content);
-      setTotalElements(response.totalElements);
-
-      const openCount = response.content.filter((t) => t.status === 'OPEN').length;
-      const inProgCount = response.content.filter((t) => t.status === 'IN_PROGRESS').length;
-      const resolvedCount = response.content.filter((t) => t.status === 'RESOLVED').length;
-      const closedCount = response.content.filter((t) => t.status === 'CLOSED').length;
-
-      const urgentCount = response.content.filter((t) => t.priority === 'URGENT').length;
-      const highCount = response.content.filter((t) => t.priority === 'HIGH').length;
-      const mediumCount = response.content.filter((t) => t.priority === 'MEDIUM').length;
-      const lowCount = response.content.filter((t) => t.priority === 'LOW').length;
-
-      setStats({
-        total: response.totalElements,
-        open: openCount,
-        inProgress: inProgCount,
-        resolved: resolvedCount,
-        closed: closedCount,
-        urgent: urgentCount,
-        high: highCount,
-        medium: mediumCount,
-        low: lowCount,
-      });
+      const [statsData, ticketsResponse] = await Promise.all([
+        dashboardApi.getAdminDashboard(),
+        ticketApi.getTickets({ page: 0, size: 6 }),
+      ]);
+      setStats(statsData);
+      setTickets(ticketsResponse.content);
     } catch (err) {
       setError(extractErrorMessage(err, 'Failed to load admin dashboard.'));
     } finally {
@@ -94,15 +78,16 @@ export function AdminDashboard() {
         description="System-wide overview of tickets, agents, and support operations."
       />
 
-      <StatGrid columns={4}>
-        <StatCard label="Total Tickets" value={totalElements} icon={Inbox} accent="slate" />
-        <StatCard label="Open" value={stats.open} icon={Clock} accent="blue" />
-        <StatCard label="In Progress" value={stats.inProgress} icon={AlertTriangle} accent="amber" />
-        <StatCard label="Resolved" value={stats.resolved} icon={CheckCircle} accent="emerald" />
-      </StatGrid>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <StatCard label="Total Tickets" value={stats.totalTickets} icon={Inbox} accent="slate" />
+        <StatCard label="Open" value={stats.openTickets} icon={Clock} accent="blue" />
+        <StatCard label="In Progress" value={stats.inProgressTickets} icon={AlertTriangle} accent="amber" />
+        <StatCard label="Resolved" value={stats.resolvedTickets} icon={CheckCircle} accent="emerald" />
+        <StatCard label="Unassigned" value={stats.unassignedTickets} icon={HelpCircle} accent="red" />
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-6">
           <Card padding={false}>
             <div className="p-5 pb-0">
               <CardHeader
@@ -113,16 +98,37 @@ export function AdminDashboard() {
             </div>
             <TicketList tickets={recentTickets} linkPrefix="/admin/tickets" />
           </Card>
+
+          <Card>
+            <CardHeader title="Category Breakdown" subtitle="Ticket distribution across categories" />
+            <CategoryDistribution categories={stats.categoryDistribution} total={stats.totalTickets} />
+          </Card>
         </div>
 
         <div className="space-y-6">
           <Card>
             <CardHeader title="Status Distribution" subtitle="Tickets by status" />
-            <StatusDistribution counts={stats} total={stats.total} />
+            <StatusDistribution
+              counts={{
+                open: stats.openTickets,
+                inProgress: stats.inProgressTickets,
+                resolved: stats.resolvedTickets,
+                closed: stats.closedTickets,
+              }}
+              total={stats.totalTickets}
+            />
           </Card>
           <Card>
             <CardHeader title="Priority Overview" subtitle="Tickets by priority" />
-            <PriorityDistribution counts={stats} total={stats.total} />
+            <PriorityDistribution
+              counts={{
+                urgent: stats.priorityDistribution.URGENT || 0,
+                high: stats.priorityDistribution.HIGH || 0,
+                medium: stats.priorityDistribution.MEDIUM || 0,
+                low: stats.priorityDistribution.LOW || 0,
+              }}
+              total={stats.totalTickets}
+            />
           </Card>
         </div>
       </div>

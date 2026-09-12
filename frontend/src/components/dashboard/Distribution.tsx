@@ -73,3 +73,38 @@ export function PriorityDistribution({ counts }: PriorityDistributionProps) {
     </div>
   );
 }
+
+interface CategoryDistributionProps {
+  categories: { categoryId: string; categoryName: string; ticketCount: number }[];
+  total: number;
+}
+
+export function CategoryDistribution({ categories, total }: CategoryDistributionProps) {
+  if (categories.length === 0) {
+    return <p className="text-sm text-slate-500">No categories found.</p>;
+  }
+
+  const colors = [
+    'bg-blue-500',
+    'bg-indigo-500',
+    'bg-purple-500',
+    'bg-emerald-500',
+    'bg-amber-500',
+    'bg-rose-500',
+    'bg-cyan-500',
+  ];
+
+  return (
+    <div className="space-y-3">
+      {categories.map((cat, idx) => (
+        <DistributionBar
+          key={cat.categoryId}
+          label={cat.categoryName}
+          count={cat.ticketCount}
+          total={total}
+          color={colors[idx % colors.length]}
+        />
+      ))}
+    </div>
+  );
+}
