@@ -141,4 +141,78 @@ class JwtServiceTest {
         assertThrows(IllegalStateException.class, () -> new JwtService("   ", EXPIRATION_MS));
         assertThrows(IllegalStateException.class, () -> new JwtService("short-secret-under-32-bytes", EXPIRATION_MS));
     }
+
+    @Test
+    void rejectsTokenWithoutExpirationClaim() {
+        // Construct token directly with no expiration
+        byte[] keyBytes = TEST_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        javax.crypto.SecretKey key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(keyBytes);
+        String tokenNoExp = io.jsonwebtoken.Jwts.builder()
+                .subject("noexp@example.com")
+                .claim("role", "USER")
+                .claim("userId", UUID.randomUUID().toString())
+                .signWith(key)
+                .compact();
+
+        assertFalse(jwtService.validateToken(tokenNoExp));
+    }
+
+    @Test
+    void rejectsTokenWithInvalidOrUnknownRole() {
+        byte[] keyBytes = TEST_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        javax.crypto.SecretKey key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(keyBytes);
+        String tokenInvalidRole = io.jsonwebtoken.Jwts.builder()
+                .subject("user@example.com")
+                .claim("role", "SUPER_ADMIN_FORGED")
+                .expiration(java.util.Date.from(Instant.now().plusSeconds(3600)))
+                .signWith(key)
+                .compact();
+
+        assertFalse(jwtService.validateToken(tokenInvalidRole));
+    }
+
+    @Test
+    void rejectsTokenWithBlankSubject() {
+        byte[] keyBytes = TEST_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        javax.crypto.SecretKey key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(keyBytes);
+        String tokenBlankSub = io.jsonwebtoken.Jwts.builder()
+                .subject("   ")
+                .claim("role", "USER")
+                .expiration(java.util.Date.from(Instant.now().plusSeconds(3600)))
+                .signWith(key)
+                .compact();
+
+        assertFalse(jwtService.validateToken(tokenBlankSub));
+    }
+
+    @Test
+    void returnsNullWhenUserIdClaimIsNotAValidUuid() {
+        byte[] keyBytes = TEST_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        javax.crypto.SecretKey key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(keyBytes);
+        String tokenMalformedUuid = io.jsonwebtoken.Jwts.builder()
+                .subject("user@example.com")
+                .claim("role", "USER")
+                .claim("userId", "not-a-valid-uuid-string")
+                .expiration(java.util.Date.from(Instant.now().plusSeconds(3600)))
+                .signWith(key)
+                .compact();
+
+        assertNull(jwtService.extractUserId(tokenMalformedUuid));
+    }
+
+    @Test
+    void rejectsTamperedPayloadToken() {
+        User user = createSampleUser(UserRole.USER);
+        String validToken = jwtService.generateToken(user);
+
+        // Split into header, payload, signature
+        String[] parts = validToken.split("\\.");
+        assertEquals(3, parts.length);
+
+        // Tamper with payload characters
+        String tamperedPayload = parts[1].substring(0, parts[1].length() - 2) + "==";
+        String tamperedToken = parts[0] + "." + tamperedPayload + "." + parts[2];
+
+        assertFalse(jwtService.validateToken(tamperedToken));
+    }
 }

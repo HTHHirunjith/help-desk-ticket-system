@@ -89,7 +89,11 @@ public class JwtService {
         if (userIdStr == null || userIdStr.isBlank()) {
             return null;
         }
-        return UUID.fromString(userIdStr);
+        try {
+            return UUID.fromString(userIdStr);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
     }
 
     public boolean validateToken(String token) {
@@ -99,6 +103,9 @@ public class JwtService {
         try {
             Claims claims = extractAllClaims(token);
             if (claims.getSubject() == null || claims.getSubject().isBlank()) {
+                return false;
+            }
+            if (claims.getExpiration() == null || claims.getExpiration().before(new Date())) {
                 return false;
             }
             String roleStr = claims.get("role", String.class);
