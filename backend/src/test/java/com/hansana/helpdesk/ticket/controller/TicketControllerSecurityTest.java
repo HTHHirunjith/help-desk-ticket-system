@@ -269,6 +269,21 @@ class TicketControllerSecurityTest {
                             .content(objectMapper.writeValueAsString(req)))
                     .andExpect(status().isForbidden());
         }
+
+        @Test
+        @WithMockUser(username = "other@helpdesk.dev", roles = {"USER"})
+        void updateOtherUsersTicketReturns404NotFound() throws Exception {
+            UpdateTicketRequest req = new UpdateTicketRequest("Hacked Title", null, null);
+            when(ticketService.updateOpenTicket(eq(sampleId), any(), any()))
+                    .thenThrow(new ResourceNotFoundException("Ticket not found with id: " + sampleId));
+
+            mockMvc.perform(patch("/api/v1/tickets/" + sampleId)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(req)))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status", is(404)))
+                    .andExpect(jsonPath("$.error", is("Not Found")));
+        }
     }
 
     @Nested
@@ -429,6 +444,18 @@ class TicketControllerSecurityTest {
                     .andExpect(status().isForbidden());
             mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/close"))
                     .andExpect(status().isForbidden());
+        }
+
+        @Test
+        @WithMockUser(username = "otheragent@helpdesk.dev", roles = {"SUPPORT_AGENT"})
+        void startWorkOnUnassignedOrOtherAgentsTicketReturns404NotFound() throws Exception {
+            when(ticketService.startWork(eq(sampleId), any()))
+                    .thenThrow(new ResourceNotFoundException("Ticket not found with id: " + sampleId));
+
+            mockMvc.perform(post("/api/v1/tickets/" + sampleId + "/start"))
+                    .andExpect(status().isNotFound())
+                    .andExpect(jsonPath("$.status", is(404)))
+                    .andExpect(jsonPath("$.error", is("Not Found")));
         }
 
         @Test

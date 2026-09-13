@@ -416,6 +416,21 @@ class TicketServiceTest {
         }
 
         @Test
+        void updateOpenTicket_whenUserIsNotRequesterOnOpenTicket_throwsResourceNotFoundException() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket openTicket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            openTicket.setId(ticketId);
+            openTicket.setStatus(TicketStatus.OPEN);
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(openTicket));
+
+            UpdateTicketRequest request = new UpdateTicketRequest("Hacked Title", null, null);
+
+            assertThrows(ResourceNotFoundException.class,
+                    () -> ticketService.updateOpenTicket(ticketId, request, otherUserPrincipal));
+            verify(ticketRepository, never()).save(any());
+        }
+
+        @Test
         void step5_OwnerGets409WhenTicketIsNotOpen() {
             UUID ticketId = UUID.randomUUID();
             Ticket inProgressTicket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
@@ -799,6 +814,24 @@ class TicketServiceTest {
             when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
             assertThrows(com.hansana.helpdesk.common.exception.InvalidTicketStateException.class,
                     () -> ticketService.resolveTicket(ticketId, agentPrincipal));
+        }
+
+        @Test
+        void resolvingUnassignedTicketOrWrongAgentThrowsResourceNotFoundException() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.IN_PROGRESS);
+            ticket.setAssignedAgent(null); // Unassigned
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+
+            // Unassigned agent attempt -> 404
+            assertThrows(ResourceNotFoundException.class, () -> ticketService.resolveTicket(ticketId, agentPrincipal));
+
+            // Assigned to another agent -> 404
+            ticket.setAssignedAgent(otherAgent);
+            assertThrows(ResourceNotFoundException.class, () -> ticketService.resolveTicket(ticketId, agentPrincipal));
         }
 
         @Test
