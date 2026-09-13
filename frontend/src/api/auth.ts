@@ -8,7 +8,11 @@ export function extractErrorMessage(error: unknown, fallback = 'An unexpected er
     const data = error.response?.data;
 
     if (status === 401) {
-      return 'Invalid email or password.';
+      const url = error.config?.url || '';
+      if (url.includes('/api/v1/auth/login')) {
+        return 'Invalid email or password.';
+      }
+      return 'Your session has expired. Please log in again.';
     }
 
     if (status === 403) {
