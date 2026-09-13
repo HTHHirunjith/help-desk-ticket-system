@@ -890,8 +890,6 @@ class TicketServiceTest {
             ticket.setId(ticketId);
             ticket.setStatus(TicketStatus.RESOLVED);
             ticket.setAssignedAgent(agent);
-            ticket.setResolutionConfirmedAt(java.time.Instant.now());
-            ticket.setResolutionConfirmedBy(requester);
 
             when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
             when(userRepository.findById(requesterPrincipal.getId())).thenReturn(Optional.of(requester));
@@ -961,6 +959,66 @@ class TicketServiceTest {
             assertThrows(org.springframework.security.access.AccessDeniedException.class,
                     () -> ticketService.closeTicket(ticketId, requesterPrincipal));
         }
+
+        @Test
+        void rejectResolution_whenAlreadyConfirmed_throwsInvalidTicketStateException() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.RESOLVED);
+            ticket.setResolutionConfirmedAt(java.time.Instant.now());
+            ticket.setResolutionConfirmedBy(requester);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+
+            assertThrows(com.hansana.helpdesk.common.exception.InvalidTicketStateException.class,
+                    () -> ticketService.rejectResolution(ticketId, requesterPrincipal));
+
+            assertEquals(TicketStatus.RESOLVED, ticket.getStatus());
+            assertNotNull(ticket.getResolutionConfirmedAt());
+            assertNotNull(ticket.getResolutionConfirmedBy());
+            verify(ticketAuditRepository, never()).save(any());
+        }
+
+        @Test
+        void startWork_onReopenedTicketBySameAgent_succeeds() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.OPEN);
+            ticket.setAssignedAgent(agent);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+            when(userRepository.findById(agentPrincipal.getId())).thenReturn(Optional.of(agent));
+            when(ticketRepository.save(any(Ticket.class))).thenAnswer(i -> i.getArgument(0));
+
+            TicketDetailResponse response = ticketService.startWork(ticketId, agentPrincipal);
+
+            assertNotNull(response);
+            assertEquals(TicketStatus.IN_PROGRESS, ticket.getStatus());
+            assertEquals(agent, ticket.getAssignedAgent());
+            verify(ticketRepository).save(ticket);
+            verify(ticketAuditRepository).save(any());
+        }
+
+        @Test
+        void closeTicket_onReopenedTicket_throwsInvalidTicketStateException() {
+            UUID ticketId = UUID.randomUUID();
+            Ticket ticket = new Ticket("Title", "Desc", activeCategory, TicketPriority.LOW, requester);
+            ticket.setId(ticketId);
+            ticket.setStatus(TicketStatus.OPEN);
+
+            when(ticketRepository.findById(ticketId)).thenReturn(Optional.of(ticket));
+
+            assertThrows(com.hansana.helpdesk.common.exception.InvalidTicketStateException.class,
+                    () -> ticketService.closeTicket(ticketId, adminPrincipal));
+
+            assertEquals(TicketStatus.OPEN, ticket.getStatus());
+            verify(ticketAuditRepository, never()).save(any());
+        }
     }
 }
+
+
+
 

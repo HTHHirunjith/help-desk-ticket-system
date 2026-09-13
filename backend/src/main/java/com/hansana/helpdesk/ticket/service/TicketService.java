@@ -392,6 +392,10 @@ public class TicketService {
             throw new InvalidTicketStateException("Cannot reject resolution on ticket in status: " + ticket.getStatus());
         }
 
+        if (ticket.getResolutionConfirmedAt() != null) {
+            throw new InvalidTicketStateException("Cannot reject resolution on an already confirmed ticket");
+        }
+
         User actor = userRepository.findById(principal.getId())
                 .orElseThrow(() -> new ResourceNotFoundException("Actor not found with id: " + principal.getId()));
 
