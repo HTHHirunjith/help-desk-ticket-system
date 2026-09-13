@@ -200,20 +200,6 @@ export interface UpdateCategoryPayload {
 
 // Retained for backward-compatibility with UI components
 export type Ticket = TicketSummary;
-export type TicketCategory = TicketCategoryName;
-
-export interface Agent {
-  id: string;
-  userId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: UserRole;
-  activeTickets: number;
-  resolvedTickets: number;
-  status: 'AVAILABLE' | 'BUSY' | 'OFFLINE';
-  createdAt: string;
-}
 
 export interface UserDashboardStats {
   totalTickets: number;

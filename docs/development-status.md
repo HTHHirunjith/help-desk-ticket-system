@@ -1,8 +1,8 @@
 # Help Desk Ticket System — Development Status
 
-**Document version:** 1.7
-**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A (Ticket & Category Foundation) — complete; Phase 3B (Core Ticket Management) — complete; Phase 3C (Assignment + Workflow) — complete; Phase 3D (Comments + Audit API) — complete; Phase 3E (Frontend Integration) — complete; Phase 4A (Administrative Category Management) — complete; Phase 4B (Administrative User & Agent Management) — complete
-**Next phase:** Phase 4C (Search & Dashboard Analytics) — not started
+**Document version:** 1.8
+**Phase covered:** Phase 2 (Authentication & Authorization) — complete; Phase 3A-3E (Ticket Management & Frontend Integration) — complete; Phase 4A (Administrative Category Management) — complete; Phase 4B (Administrative User & Agent Management) — complete; Phase 4C (Ticket Search) — complete; Phase 4D (Dedicated Dashboard APIs) — complete; Phase 4E (Cleanup & Integration) — in progress
+**Next phase:** Phase 5 (Security Hardening & Production Readiness) — not started
 
 ---
 
@@ -359,11 +359,33 @@ Phase 4B implemented public self-registration for `USER` roles, ADMIN-controlled
   - Unit tests for `UserServiceTest`, `AuthServiceTest`, `EmailServiceTest`, `TemporaryPasswordGeneratorTest`.
   - Controller security slice tests in `UserControllerSecurityTest` and `AuthControllerSecurityTest` covering authorization, HTTP statuses, and validation.
 
-### 6.8 Not Yet Implemented (Phase 4C+)
+### 6.8 Phase 4C Implementation Summary (Ticket Search)
 
-The following features are designed and specified in the API contract and architecture documents but have **NOT** been implemented:
+Phase 4C implemented full-text search across tickets on both backend and frontend:
+- **Backend**: Native SQL queries with parameterized ILIKE filter matching title, description, and cast ticket number (`search` query param in `GET /api/v1/tickets`).
+- **Frontend**: Search input with debounce and integration across `MyTicketsPage`, `AssignedTicketsPage`, and `AdminTicketsPage`.
 
-- **Phase 4C**: Dedicated server-calculated dashboard statistics endpoints (`/api/v1/dashboard/*`) and ticket full-text search.
+### 6.9 Phase 4D Implementation Summary (Dedicated Dashboard APIs)
+
+Phase 4D implemented dedicated server-calculated dashboard statistics endpoints:
+- **Backend APIs**:
+  - `GET /api/v1/dashboard/user` (Role: `USER`): totalTickets, openTickets, inProgressTickets, resolvedTickets, closedTickets (scoped to requester).
+  - `GET /api/v1/dashboard/agent` (Role: `SUPPORT_AGENT`): assignedTickets, openTickets, inProgressTickets, resolvedTickets, closedTickets (scoped to assigned agent).
+  - `GET /api/v1/dashboard/admin` (Role: `ADMIN`): totalTickets, status counts, unassignedTickets, priorityDistribution (all enum keys), categoryDistribution (active and inactive categories with ticket counts).
+- **Database Aggregation**: All statistics computed at database level via JPQL `GROUP BY` / `COUNT`.
+- **Frontend Integration**: Dedicated `dashboardApi` in `frontend/src/api/dashboard.ts` wired into `UserDashboard.tsx`, `AgentDashboard.tsx`, and `AdminDashboard.tsx`.
+
+### 6.10 Phase 4E Implementation Summary (Cleanup & Integration)
+
+Phase 4E cleaned up obsolete legacy artifacts and consolidated frontend types:
+- **Mock Layer Removal**: Deleted obsolete `frontend/src/services/` (`mockData.ts`, `api.ts`, `index.ts`).
+- **Type Cleanup**: Removed obsolete `Agent` interface and `TicketCategory` alias in `frontend/src/types/index.ts`. Retained `Ticket` alias for compatibility.
+
+### 6.11 Not Yet Implemented (Phase 5+)
+
+The following features are planned for future phases:
+
+- **Phase 5**: Security hardening, rate limiting, and production readiness.
 - **Future phases**: Advanced reporting, email notifications for ticket events, file attachments.
 
 ---
