@@ -84,25 +84,15 @@ export function CategoryDistribution({ categories, total }: CategoryDistribution
     return <p className="text-sm text-slate-500">No categories found.</p>;
   }
 
-  const colors = [
-    'bg-blue-500',
-    'bg-indigo-500',
-    'bg-purple-500',
-    'bg-emerald-500',
-    'bg-amber-500',
-    'bg-rose-500',
-    'bg-cyan-500',
-  ];
-
   return (
     <div className="space-y-3">
-      {categories.map((cat, idx) => (
+      {categories.map((cat) => (
         <DistributionBar
           key={cat.categoryId}
           label={cat.categoryName}
           count={cat.ticketCount}
           total={total}
-          color={colors[idx % colors.length]}
+          color="bg-blue-600"
         />
       ))}
     </div>

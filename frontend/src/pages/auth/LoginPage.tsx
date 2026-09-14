@@ -72,14 +72,11 @@ export function LoginPage() {
           </div>
           <div className="max-w-md">
             <h1 className="text-3xl font-bold leading-tight mb-4">
-              Professional support ticket management for modern teams
+              Keep support requests organized from submission to resolution.
             </h1>
             <p className="text-slate-400 text-lg leading-relaxed">
-              Submit, track, and resolve support tickets with a streamlined workflow built for users, agents, and administrators.
+              A centralized help desk for managing support requests, tracking progress, and keeping users and support teams aligned.
             </p>
-          </div>
-          <div className="flex items-center gap-6 text-sm text-slate-400">
-            <span>Open · In Progress · Resolved · Closed</span>
           </div>
         </div>
       </div>
@@ -172,7 +169,6 @@ export function LoginPage() {
               <p><span className="font-medium text-slate-700">User:</span> user@helpdesk.dev</p>
               <p><span className="font-medium text-slate-700">Agent:</span> agent@helpdesk.dev</p>
               <p><span className="font-medium text-slate-700">Admin:</span> admin@helpdesk.dev</p>
-              <p className="text-slate-400 mt-1">Use the local development password configured in backend/.env</p>
             </div>
           </div>
         </div>
