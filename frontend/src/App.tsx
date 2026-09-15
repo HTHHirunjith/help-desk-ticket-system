@@ -14,7 +14,6 @@ import { TicketWorkspacePage } from '@/pages/agent/TicketWorkspacePage';
 import { AdminDashboard } from '@/pages/admin/AdminDashboard';
 import { AdminTicketsPage } from '@/pages/admin/AdminTicketsPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
-import { AdminAgentsPage } from '@/pages/admin/AdminAgentsPage';
 import { AdminCategoriesPage } from '@/pages/admin/AdminCategoriesPage';
 import { useAuth } from '@/context/AuthContext';
 import { roleHomePaths } from '@/config/navigation';
@@ -64,7 +63,7 @@ export default function App() {
           <Route path="/admin/tickets" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminTicketsPage /></ProtectedRoute>} />
           <Route path="/admin/tickets/:id" element={<ProtectedRoute allowedRoles={['ADMIN', 'SUPPORT_AGENT']}><TicketWorkspacePage /></ProtectedRoute>} />
           <Route path="/admin/users" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminUsersPage /></ProtectedRoute>} />
-          <Route path="/admin/agents" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminAgentsPage /></ProtectedRoute>} />
+          <Route path="/admin/agents" element={<Navigate to="/admin/users" replace />} />
           <Route path="/admin/categories" element={<ProtectedRoute allowedRoles={['ADMIN']}><AdminCategoriesPage /></ProtectedRoute>} />
 
           {/* Fallback */}

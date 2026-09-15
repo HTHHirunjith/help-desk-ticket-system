@@ -4,7 +4,6 @@ import {
   Ticket as TicketIcon,
   PlusCircle,
   Users,
-  Headphones,
   FolderCog,
   type LucideIcon,
 } from 'lucide-react';
@@ -29,7 +28,6 @@ export const navConfig: Record<UserRole, NavItem[]> = {
     { label: 'Dashboard', path: '/admin/dashboard', icon: LayoutDashboard },
     { label: 'Tickets', path: '/admin/tickets', icon: TicketIcon },
     { label: 'Users', path: '/admin/users', icon: Users },
-    { label: 'Agents', path: '/admin/agents', icon: Headphones },
     { label: 'Categories', path: '/admin/categories', icon: FolderCog },
   ],
 };
